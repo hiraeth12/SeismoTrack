@@ -58,8 +58,8 @@ const url = import.meta.env.VITE_BMKG_GEMPA_ALL;
             {
               label: "Jumlah Gempa",
               data: Object.values(bins),
-              backgroundColor: "#6A7D5A",
-              borderColor: "#6A7D5A",
+              backgroundColor: "#FFAC11",
+              borderColor: "#FFAC11",
               borderWidth: 1,
             },
           ],

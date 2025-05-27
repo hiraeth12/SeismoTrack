@@ -50,22 +50,20 @@ const EarthquakeLocationChart: React.FC = () => {
               label: "Jumlah Gempa per Lokasi",
               data: values,
               backgroundColor: [
-                "#6A7D5A", // hijau zaitun gelap
-                "#B0C4B1", // hijau muda keabu-abuan
-                "#8D9F87", // hijau sage
-                "#D1E8B3", // hijau pucat cerah
-                "#C5C9A4", // hijau kekuningan lembut
-                "#999999", // abu-abu netral
-
-                "#7C8F65", // hijau zaitun medium
-                "#AFC8A6", // hijau pastel
-                "#5E7353", // hijau daun tua
-                "#DCEAD1", // hijau keputihan sangat terang
-                "#B2BCA5", // hijau dusty
-                "#E2EAD2", // hijau muda nyaris krem
-
-                "#6D6F64", // abu kehijauan tua
-                "#8FA98B", // hijau keabu-abuan kalem
+                "#FFAC11",
+                "#F88F0A",
+                "#E76E00",
+                "#D85100",
+                "#C93700",
+                "#B32000",
+                "#C70000",
+                "#FFB833",
+                "#F9991C",
+                "#E88217",
+                "#D96B12",
+                "#C9550D",
+                "#B53F08",
+                "#A32A05",
               ],
               borderColor: "#fff",
               borderWidth: 1,

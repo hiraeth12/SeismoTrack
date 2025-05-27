@@ -32,11 +32,11 @@ const FeatureSection = () => {
     <section className="py-20 px-8 sm:px-12 lg:px-16 bg-white" id="fitur">
       <div className="max-w-full mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-[#717171] text-xl font-bold tracking-wider uppercase mb-4">
+          <h2 className="text-[#5C3B00] text-xl font-bold tracking-wider uppercase mb-4">
             FITUR SEISMOTRACK
           </h2>
-          <div className="w-3/4 h-px bg-[#d9dbe1] relative mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#6a7d5a] to-transparent"></div>
+          <div className="w-3/4 h-px bg-[#d9dbe1 relative mx-auto">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#5C3B00] to-transparent"></div>
           </div>
         </div>
       </div>
