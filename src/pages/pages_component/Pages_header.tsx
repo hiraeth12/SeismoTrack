@@ -46,7 +46,7 @@ const Header: React.FC = () => {
                 className={clsx(
                   "relative py-2 text-md font-cascadia transition-colors duration-300 ease-in-out font-bold capitalize",
                   activeSection === item
-                    ? "text-transparent bg-clip-text bg-gradient-to-r from-[#6A7D5A] to-[#73714D]"
+                    ? "text-transparent bg-clip-text bg-gradient-to-r from-[#5C3B00] to-[#333333]"
                     : "text-slate-400"
                 )}
               >

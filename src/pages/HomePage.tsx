@@ -7,15 +7,18 @@ import EarthquakeSection from "./pages_component/EarthquakeSection";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[#f5f7fa] font-cascadia scroll-smooth">
+    <div className="min-h-screen font-cascadia scroll-smooth">  
+
       {/* Header */}
       <Header />
 
       {/* Hero Section */}
       <HeroSection />
+
       {/* Feature Section */}
       <FeatureSection />
 
+      {/* Earthquake Chart Section */}
       <EarthquakeSection />
 
       {/* About Section */}

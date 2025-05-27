@@ -2,10 +2,12 @@
 import React from "react";
 import EarthquakeChart from "./EarthquakeChart";
 import EarthquakeLocationChart from "./EarthquakeLocationChart";
+import Eva from "./EvaBG";
 
 const EarthquakeSection: React.FC = () => {
   return (
-    <section id="grafik" className="py-16 bg-white">
+    <section id="grafik" className="py-16 bg-[#F5F5F5] relative">
+      <Eva />
       <div className="container mx-auto px-4">
         <h2 className="text-[#717171] text-xl font-bold tracking-wider uppercase mb-8 text-center">
           Statistik Gempa
