@@ -2,8 +2,8 @@
 export default function AboutText() {
   return (
     <div>
-      <h2 className="text-3xl font-bold text-[#000000] mb-6">Tentang Kami</h2>
-      <div className="space-y-4 text-[#717171] leading-relaxed">
+      <h2 className="text-xl font-bold text-[#5C3B00] mb-6">Tentang Kami</h2>
+      <div className="space-y-4 text-[#747479] leading-relaxed">
         <p>
           Memantau Gempa Bumi, Lebih Cepat dan Akurat. SeismoTrack hadir sebagai inovasi terbaru yang menjawab kebutuhan masyarakat Indonesia akan platform pemantau gempa yang real-time, informatif dan terpercaya.
         </p>

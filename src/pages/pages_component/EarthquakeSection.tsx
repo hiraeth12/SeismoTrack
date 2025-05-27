@@ -9,11 +9,11 @@ const EarthquakeSection: React.FC = () => {
     <section id="grafik" className="py-16 bg-[#F5F5F5] relative">
       <Eva />
       <div className="container mx-auto px-4">
-        <h2 className="text-[#717171] text-xl font-bold tracking-wider uppercase mb-8 text-center">
+        <h2 className="text-[#5C3B00] text-xl font-bold tracking-wider uppercase mb-8 text-center">
           Statistik Gempa
         </h2>
         <div className="w-3/4 h-px bg-[#d9dbe1] relative mx-auto mb-8">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#6a7d5a] to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#5C3B00] to-transparent"></div>
         </div>
         <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
           <div className="w-full lg:w-1/2">

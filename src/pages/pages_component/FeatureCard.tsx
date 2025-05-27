@@ -21,9 +21,9 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
             className="max-h-full max-w-full object-contain"
           />
         </div>
-        <h3 className="font-bold text-black mb-2 text-center">{title}</h3>
+        <h3 className="font-bold text-[#0D0D0D] mb-2 text-center">{title}</h3>
         <div className="w-full max-w-[200px] justify-inter-word flex-grow break-words">
-          <p className="text-[#717171] text-sm leading-relaxed text-center">
+          <p className="text-[#747479] text-sm leading-relaxed text-center">
             {description}
           </p>
         </div>
