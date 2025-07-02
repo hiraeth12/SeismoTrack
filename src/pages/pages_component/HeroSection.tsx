@@ -23,7 +23,7 @@ const HeroSection: React.FC = () => {
             <img
               src="/images/images_home/hero_seismo.png"
               alt="SeismoTrack Hero"
-              className="w-full max-w-md lg:max-w-lg h-auto"
+              className="w-1/2 max-w-md lg:max-w-lg h-auto"
             />
           </div>
 
