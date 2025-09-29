@@ -1,12 +1,12 @@
 import "mapbox-gl/dist/mapbox-gl.css";
-import "./App.css";
+import "../../styles/app.css";
 import mapboxgl from "mapbox-gl";
 import { useRef, useState } from "react";
 import io from "socket.io-client";
 import Worker from "web-worker";
-import TitikGempa from "./components/marker/titik_gempa";
-import TitikTsunami from "./components/marker/titik_tsunami";
-import GempaBumiAlert from "./components/GempaBumiAlert";
+import TitikGempa from "../../components/marker/titik_gempa";
+import TitikTsunami from "../../components/marker/titik_tsunami";
+import GempaBumiAlert from "../../components/gempa-bumi-alert";
 import * as turf from "@turf/turf";
 import { createRoot } from "react-dom/client";
 import AnimatedPopup from "mapbox-gl-animated-popup";
@@ -14,37 +14,68 @@ import {
   KotaTerdampak,
   InfoGempa,
   InfoTsunami,
-} from "./components/libs/interface";
-import TsunamiAlert from "./components/TsunamiAlert";
-import GempaAlertCard from "./components/alerts/GempaAlertCard";
-import TsunamiAlertCard from "./components/alerts/TsunamiAlertCard";
-import GempaDirasakanCard from "./components/cards/GempaDirasakanCard";
-import GempaTerakhirCard from "./components/cards/GempaTerakhirCard";
-import EventLogCard from "./components/cards/EventLogCard";
-// import DetailEventCard from "./components/cards/DetailEventCard";
-import TestButtons from "./components/ui/TestButton";
-import ShakeMapCard from "./components/cards/ShakeMapCard";
-import GempaBumiMobileAlert from "./components/alerts/GempaBumiMobileAlert";
-import GempaAlertList from "./components/alerts/GempaAlertList";
-import MapContainer from "./components/map/MapContainer";
-import { testDemoTsunami } from "./components/lib/testTsunami";
-import { testDemoGempa } from "./components/lib/testGempa";
-import { getTitikGempaJson } from "./components/lib/getTitikGempa";
-import { getGempa } from "./components/lib/getGempa";
-import { getGempaKecil } from "./components/lib/getGempaKecil";
-import { updateGempa } from "./components/lib/updateGempa";
-import GempaInfoPopupCard from "./components/cards/GempaInfoPopupCard";
+} from "../../components/libs/interface";
+import TsunamiAlert from "../../components/tsunami-alert";
+import GempaAlertCard from "../../components/alerts/gempa-alert-card";
+import TsunamiAlertCard from "../../components/alerts/tsunami-alert-card";
+import GempaDirasakanCard from "../../components/cards/gempa-dirasakan-card";
+import GempaTerakhirCard from "../../components/cards/gempa-terakhir-card";
+import EventLogCard from "../../components/cards/event-log-card";
+import TestButtons from "../../components/ui/test-button";
+import ShakeMapCard from "../../components/cards/shake-map-card";
+import GempaBumiMobileAlert from "../../components/alerts/gempa-bumi-mobile-alert";
+import GempaAlertList from "../../components/alerts/gempa-alert-list";
+import MapContainer from "../../components/map/map-container";
+import { testDemoTsunami } from "../../components/lib/testTsunami";
+import { testDemoGempa } from "../../components/lib/testGempa";
+import { getTitikGempaJson } from "../../components/lib/get-titik-gempa";
+import { getGempa } from "../../components/lib/get-gempa";
+import { getGempaKecil } from "../../components/lib/get-gempa-kecil";
+import { updateGempa } from "../../components/lib/update-gempa";
+import GempaInfoPopupCard from "../../components/cards/gempa-info-popup-card";
 import { DateTime } from "luxon";
 
 let socket;
+
+// Helper function to play audio with error handling
+const playAudioSafely = (audio: HTMLAudioElement, description: string = "") => {
+  if (audio.play) {
+    audio.play().catch((error) => {
+      console.warn(`Audio autoplay blocked for ${description}:`, error);
+    });
+  }
+};
+
+// Enable audio context on first user interaction
+let audioContextEnabled = false;
+const enableAudioContext = () => {
+  if (!audioContextEnabled) {
+    audioContextEnabled = true;
+    console.log("Audio context enabled by user interaction");
+  }
+};
+
 export default function MapPages() {
-  //const dangerSound = "/sounds/siren-alarm-96503.mp3";
+  
   const smallEarthQuakeSound = "/sounds/wrong-answer-129254.mp3";
   const tsunamiAlertSound = "sounds/tsu_eva.wav";
   const map = useRef<mapboxgl.Map | null>(null);
 
   const handleMapReady = (mapInstance: mapboxgl.Map) => {
     map.current = mapInstance;
+    
+    // Enable audio on first user interaction
+    const enableAudio = () => {
+      enableAudioContext();
+      document.removeEventListener('click', enableAudio);
+      document.removeEventListener('touchstart', enableAudio);
+      document.removeEventListener('keydown', enableAudio);
+    };
+    
+    document.addEventListener('click', enableAudio);
+    document.addEventListener('touchstart', enableAudio);
+    document.addEventListener('keydown', enableAudio);
+    
     loadGeoJsonCoastline();
   };
 
@@ -113,15 +144,15 @@ export default function MapPages() {
     var bgNotif = new Audio("/sounds/eq_eva.wav");
     bgNotif.volume = 0.3;
     bgNotif.loop = true;
-    bgNotif.play();
+    playAudioSafely(bgNotif, "background earthquake notification");
     const audioDangerElement = document.getElementById("danger");
     setTimeout(() => {
       if (audioDangerElement) {
-        (audioDangerElement as HTMLAudioElement).play();
+        playAudioSafely(audioDangerElement as HTMLAudioElement, "danger sound");
       }
       setTimeout(() => {
         var voice = new Audio("/voice/gempabumi.wav");
-        voice.play();
+        playAudioSafely(voice, "earthquake voice");
       }, 2000);
 
       setTimeout(() => {
@@ -319,25 +350,25 @@ export default function MapPages() {
     var bgNotif = new Audio("/sounds/tsu_eva.wav");
     bgNotif.volume = 0.3;
     bgNotif.loop = true;
-    bgNotif.play();
+    playAudioSafely(bgNotif, "tsunami background");
     var notif = new Audio(tsunamiAlertSound);
     notif.loop = true;
-    notif.play();
+    playAudioSafely(notif, "tsunami alert");
     setTimeout(() => {
       var voice = new Audio("/voice/terdeteksi.wav");
-      voice.play();
+      playAudioSafely(voice, "detected voice");
 
       setTimeout(() => {
         var voice = new Audio("/voice/" + level.toLowerCase() + ".wav");
-        voice.play();
+        playAudioSafely(voice, "level voice");
         setTimeout(() => {
           var voice = new Audio("/voice/potensi.wav");
-          voice.play();
+          playAudioSafely(voice, "potential voice");
 
           if (level == "AWAS") {
             setTimeout(() => {
               var voice = new Audio("/voice/evakuasi.wav");
-              voice.play();
+              playAudioSafely(voice, "evacuation voice");
               setTimeout(() => {
                 fadeOutAudio(notif, 1000);
                 fadeOutAudio(bgNotif, 1000);
@@ -346,7 +377,7 @@ export default function MapPages() {
           } else {
             setTimeout(() => {
               var voice = new Audio("/voice/informasi.wav");
-              voice.play();
+              playAudioSafely(voice, "information voice");
               setTimeout(() => {
                 fadeOutAudio(notif, 1000);
                 fadeOutAudio(bgNotif, 1000);
@@ -421,7 +452,7 @@ export default function MapPages() {
   };
 
   const initWorker = () => {
-    worker.current = new Worker(new URL("./worker.mjs", import.meta.url), {
+    worker.current = new Worker(new URL("../../worker.mjs", import.meta.url), {
       type: "module",
     });
 
@@ -470,8 +501,11 @@ export default function MapPages() {
   const recieveWave = async (data: any) => {
     let alerts: InfoGempa[] = [];
     let ntgs: TitikGempa[] = [];
+    console.log("Received wave data:", data);
+    
     for (let x = 0; x < data.titikGempa.length; x++) {
       const tg = data.titikGempa[x];
+      console.log(`Processing earthquake ${tg.id}, affected areas:`, tg.areaTerdampak.length);
 
       const nig: InfoGempa = {
         id: tg.id,
@@ -509,6 +543,10 @@ export default function MapPages() {
           hit: at.hit,
           timeArrival: new Date(new Date().getTime() + time),
         });
+        
+        if (at.hit) {
+          console.log(`Area ${at.alt_name} is HIT by earthquake wave!`);
+        }
       }
 
       nig.listKotaTerdampak!.sort((a, b) => a.distance - b.distance);
@@ -525,10 +563,19 @@ export default function MapPages() {
 
     const areas = data.area;
     const uniqueData = areas;
+    console.log("Processing areas for markers:", uniqueData.length);
 
     for (let x = 0; x < uniqueData.length; x++) {
       const element = uniqueData[x];
       const p: number[] = turf.centroid(element).geometry.coordinates;
+      const markerKey = `${p[0]}_${p[1]}`;
+      
+      // Check if this area is hit by checking the area properties directly
+      let isHit = element.properties.hit || false;
+      let cityName = element.properties.alt_name;
+      
+      console.log(`Processing city: ${cityName}, hit status: ${isHit}`);
+      
       if (
         markerDaerahs.current.findIndex(
           (el) => el[0] == p[0] && el[1] == p[1]
@@ -538,18 +585,44 @@ export default function MapPages() {
         const markerParent = document.createElement("div");
         const markerEl = document.createElement("div");
         markerEl.innerHTML =
-          '<p class="uppercase">' + element.properties.alt_name + "</p>";
+          '<p class="uppercase">' + 
+          cityName + (isHit ? " - TERDAMPAK!" : "") + "</p>";
         markerEl.classList.add("marker-daerah");
         markerEl.classList.add("show-pop-up");
+        if (isHit) {
+          markerEl.classList.add("city-hit");
+          markerEl.style.zIndex = "1000";
+          console.log(`Created hit marker for city: ${cityName}`);
+        }
         markerParent.appendChild(markerEl);
         new mapboxgl.Marker(markerParent)
           .setLngLat([p[0], p[1]])
           .addTo(map.current!);
       } else {
+        // Update existing marker if city is hit
+        if (isHit) {
+          const existingMarkers = document.querySelectorAll('.marker-daerah');
+          existingMarkers.forEach((marker) => {
+            const markerParent = marker.parentElement?.parentElement;
+            if (markerParent) {
+              const markerPosition = (markerParent as any)._lngLat;
+              if (markerPosition && Math.abs(markerPosition.lng - p[0]) < 0.001 && Math.abs(markerPosition.lat - p[1]) < 0.001) {
+                marker.innerHTML = '<p class="uppercase">' + 
+                  cityName + " - TERDAMPAK!</p>";
+                marker.classList.add("city-hit");
+                (marker as HTMLElement).style.zIndex = "1000";
+                console.log(`Updated marker for city: ${cityName}`);
+              }
+            }
+          });
+        }
+        
         const index = kts.current.findIndex(
           (el) => el.lng == p[0] && el.lat == p[1]
         );
         if (index != -1) {
+          // Update the city status in kts array
+          kts.current[index].hit = isHit;
         }
       }
     }

@@ -1,15 +1,10 @@
-// components/SimulateGempaButton.tsx
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Activity } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { House } from "lucide-react"; // ikon panah kembali
 
-interface SimulateGempaButtonProps {
-  onClick: () => void;
-}
-
-export default function SimulateGempaButton({
-  onClick,
-}: SimulateGempaButtonProps) {
+export default function BackToHomeButton() {
+  const navigate = useNavigate();
   const [isClicked, setIsClicked] = useState(false);
   const [ripples, setRipples] = useState<
     Array<{ id: number; x: number; y: number }>
@@ -24,7 +19,7 @@ export default function SimulateGempaButton({
     setRipples((prev) => [...prev, newRipple]);
 
     setIsClicked(true);
-    onClick?.();
+    navigate("/"); // ← arahkan ke landing page
 
     setTimeout(() => {
       setRipples((prev) => prev.filter((ripple) => ripple.id !== newRipple.id));
@@ -37,7 +32,7 @@ export default function SimulateGempaButton({
   return (
     <motion.button
       onClick={handleClick}
-      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-300 active:scale-95 flex items-center justify-center"
+      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-gray-500 to-gray-700 hover:from-gray-600 hover:to-gray-800 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-300 active:scale-95 flex items-center justify-center"
       whileHover={{
         x: [0, -1, 1, -1, 1, 0],
         transition: {
@@ -77,26 +72,24 @@ export default function SimulateGempaButton({
         ))}
       </AnimatePresence>
 
-      {/* Content */}
-      <div className="relative z-10 flex items-center justify-center space-x-2">
-        <motion.div
-          animate={
-            isClicked
-              ? {
-                  rotate: [0, -5, 5, -5, 5, 0],
-                  transition: { duration: 0.4 },
-                }
-              : {}
-          }
-        >
-          <Activity className="w-4 h-4" />
-        </motion.div>
-        {/* <span>TEST GEMPA</span> */}
-      </div>
-
-      {/* Background animation */}
+      {/* Icon */}
       <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-xl"
+        className="relative z-10"
+        animate={
+          isClicked
+            ? {
+                rotate: [0, -5, 5, -5, 5, 0],
+                transition: { duration: 0.4 },
+              }
+            : {}
+        }
+      >
+        <House className="w-4 h-4" />
+      </motion.div>
+
+      {/* Background Pulse */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/10 rounded-full"
         animate={{
           opacity: [0, 0.3, 0],
           scale: [1, 1.05, 1],

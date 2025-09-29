@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { DateTime } from "luxon";
 import AnimatedPopup from "mapbox-gl-animated-popup";
-import EarthquakePopupCard from "../cards/EarthquakePopupCard";
+import EarthquakePopupCard from "../cards/earthquake-popup-card";
 import TitikGempa from "../marker/titik_gempa";
 
 export async function getTitikGempaJson(

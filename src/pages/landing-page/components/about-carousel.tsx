@@ -1,11 +1,11 @@
-// src/components/about/AboutCarousel.tsx
+// src/pages/landing-page/components/AboutCarousel.tsx
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "../../components/ui/carousel";
+} from "../../../components/ui/carousel";
 
 export default function AboutCarousel() {
   return (

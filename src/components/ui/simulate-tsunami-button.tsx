@@ -1,10 +1,15 @@
-import { useNavigate } from "react-router-dom";
+// components/SimulateGempaButton.tsx
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { House } from "lucide-react"; // ikon panah kembali
+import { motion, AnimatePresence } from "motion/react";
+import { Waves } from "lucide-react";
 
-export default function BackToHomeButton() {
-  const navigate = useNavigate();
+interface SimulateTsunamiButtonProps {
+  onClick: () => void;
+}
+
+export default function SimulateTsunamiButton({
+  onClick,
+}: SimulateTsunamiButtonProps) {
   const [isClicked, setIsClicked] = useState(false);
   const [ripples, setRipples] = useState<
     Array<{ id: number; x: number; y: number }>
@@ -19,7 +24,7 @@ export default function BackToHomeButton() {
     setRipples((prev) => [...prev, newRipple]);
 
     setIsClicked(true);
-    navigate("/"); // ← arahkan ke landing page
+    onClick?.();
 
     setTimeout(() => {
       setRipples((prev) => prev.filter((ripple) => ripple.id !== newRipple.id));
@@ -32,7 +37,7 @@ export default function BackToHomeButton() {
   return (
     <motion.button
       onClick={handleClick}
-      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-gray-500 to-gray-700 hover:from-gray-600 hover:to-gray-800 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-300 active:scale-95 flex items-center justify-center"
+      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-800 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-300 active:scale-95 flex items-center justify-center"
       whileHover={{
         x: [0, -1, 1, -1, 1, 0],
         transition: {
@@ -72,24 +77,26 @@ export default function BackToHomeButton() {
         ))}
       </AnimatePresence>
 
-      {/* Icon */}
-      <motion.div
-        className="relative z-10"
-        animate={
-          isClicked
-            ? {
-                rotate: [0, -5, 5, -5, 5, 0],
-                transition: { duration: 0.4 },
-              }
-            : {}
-        }
-      >
-        <House className="w-4 h-4" />
-      </motion.div>
+      {/* Content */}
+      <div className="relative z-10 flex items-center justify-center space-x-2">
+        <motion.div
+          animate={
+            isClicked
+              ? {
+                  rotate: [0, -5, 5, -5, 5, 0],
+                  transition: { duration: 0.4 },
+                }
+              : {}
+          }
+        >
+          <Waves className="w-4 h-4" />
+        </motion.div>
+        {/* <span>TEST TSUNAMI</span> */}
+      </div>
 
-      {/* Background Pulse */}
+      {/* Background animation */}
       <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/10 rounded-full"
+        className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-xl"
         animate={{
           opacity: [0, 0.3, 0],
           scale: [1, 1.05, 1],

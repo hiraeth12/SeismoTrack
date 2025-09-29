@@ -1,8 +1,8 @@
 // src/components/EarthquakeSection.tsx
 import React from "react";
-import EarthquakeChart from "./EarthquakeChart";
-import EarthquakeLocationChart from "./EarthquakeLocationChart";
-import Eva from "./EvaBG";
+import EarthquakeChart from "./earthquake-chart";
+import EarthquakeLocationChart from "./earthquake-location-chart";
+import Eva from "./eva-bg";
 
 const EarthquakeSection: React.FC = () => {
   return (

@@ -1,6 +1,6 @@
 // src/components/about/AboutSection.tsx
-import AboutCarousel from "./AboutCarousel";
-import AboutText from "./AboutText";
+import AboutCarousel from "./about-carousel";
+import AboutText from "./about-text";
 
 export default function AboutSection() {
   return (

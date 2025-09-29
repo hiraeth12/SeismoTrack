@@ -1,7 +1,7 @@
 // src/components/footer/Footer.tsx
-import FooterInfo from "./FooterInfo";
-import FooterNav from "./FooterNav";
-import FooterContact from "./FooterContact";
+import FooterInfo from "./footer-info";
+import FooterNav from "./footer-nav";
+import FooterContact from "./footer-contact";
 
 export default function Footer() {
   return (

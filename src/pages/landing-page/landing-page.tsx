@@ -1,9 +1,9 @@
-import Header from "./pages_component/Pages_header";
-import HeroSection from "./pages_component/HeroSection";
-import FeatureSection from "./pages_component/FeatureSection";
-import AboutSection from "./pages_component/AboutSection";
-import Footer from "./pages_component/Footer";
-import EarthquakeSection from "./pages_component/EarthquakeSection";
+import Header from "./components/pages-header";
+import HeroSection from "./components/hero-section";
+import FeatureSection from "./components/feature-section";
+import AboutSection from "./components/about-section";
+import Footer from "./components/footer";
+import EarthquakeSection from "./components/earthquake-section";
 
 export default function HomePage() {
   return (
