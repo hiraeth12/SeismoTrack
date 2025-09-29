@@ -1,6 +1,6 @@
 import React from "react";
-import MapButton from "./MapButton";
-import Eva from "./EvaBG";
+import MapButton from "./map-button";
+import Eva from "./eva-bg";
 
 const HeroSection: React.FC = () => {
   return (

@@ -1,15 +1,15 @@
 // components/SimulateGempaButton.tsx
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Waves } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Activity } from "lucide-react";
 
-interface SimulateTsunamiButtonProps {
+interface SimulateGempaButtonProps {
   onClick: () => void;
 }
 
-export default function SimulateTsunamiButton({
+export default function SimulateGempaButton({
   onClick,
-}: SimulateTsunamiButtonProps) {
+}: SimulateGempaButtonProps) {
   const [isClicked, setIsClicked] = useState(false);
   const [ripples, setRipples] = useState<
     Array<{ id: number; x: number; y: number }>
@@ -37,7 +37,7 @@ export default function SimulateTsunamiButton({
   return (
     <motion.button
       onClick={handleClick}
-      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-800 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-300 active:scale-95 flex items-center justify-center"
+      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-300 active:scale-95 flex items-center justify-center"
       whileHover={{
         x: [0, -1, 1, -1, 1, 0],
         transition: {
@@ -89,9 +89,9 @@ export default function SimulateTsunamiButton({
               : {}
           }
         >
-          <Waves className="w-4 h-4" />
+          <Activity className="w-4 h-4" />
         </motion.div>
-        {/* <span>TEST TSUNAMI</span> */}
+        {/* <span>TEST GEMPA</span> */}
       </div>
 
       {/* Background animation */}

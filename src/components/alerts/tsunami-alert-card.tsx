@@ -1,7 +1,7 @@
 // src/components/alerts/TsunamiAlertCard.tsx
 import React, { useState } from "react";
 import Card from "../cards/card";
-import ItemKotaTerdampak from "../ItemKotaTerdampak";
+import ItemKotaTerdampak from "../item-kota-terdampak";
 import TitikTsunami from "../marker/titik_tsunami";
 import { X } from "lucide-react";
 

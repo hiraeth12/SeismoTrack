@@ -1,8 +1,8 @@
 // src/components/ui/TestButtons.tsx
 import React from "react";
-import SimulateGempaButton from "./SimulateGempaButton";
-import SimulateTsunamiButton from "./SimulateTsunamiButton";
-import BackToHomeButton from "./HomeButton";
+import SimulateGempaButton from "./simulate-gempa-button";
+import SimulateTsunamiButton from "./simulate-tsunami-button";
+import BackToHomeButton from "./home-button";
 
 interface Props {
   onTestGempa: () => void;

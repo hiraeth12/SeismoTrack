@@ -57,7 +57,15 @@ ${feature.geometry.coordinates[0]} , ${feature.geometry.coordinates[1]}`;
     // Jika gempa kecil baru (maks 10 menit), bunyikan notifikasi
     if (currentTime.toMillis() - sentTime.toMillis() < 600000) {
       const notif = new Audio(smallEarthQuakeSound);
-      notif.play();
+      notif.volume = 0.3;
+      
+      // Handle autoplay restrictions
+      notif.play().catch((error) => {
+        console.warn("Audio autoplay blocked by browser:", error);
+        // Optionally show a visual notification instead
+        console.log("🔊 Gempa kecil terdeteksi - Audio diblokir browser");
+      });
+      
       setAlertGempaBumi(new TitikGempa(nig.id, nig));
     }
 

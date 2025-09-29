@@ -356,6 +356,28 @@
   font-weight: bold;
 }
 
+.marker-daerah.city-hit p {
+  background-color: #dc2626 !important;
+  color: white !important;
+  border: 2px solid #fbbf24 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+  animation: cityHitPulse 1.5s infinite;
+  font-weight: bold;
+  font-size: 9px;
+  z-index: 1000 !important;
+}
+
+@keyframes cityHitPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 1);
+  }
+}
+
 
 .marker-gempa {
   /* border: 3px red solid; */

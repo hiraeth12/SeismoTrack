@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .env
+REFACTOR_LOG.md
 
 # Editor directories and files
 .vscode/*

@@ -1,7 +1,7 @@
 // src/components/alerts/GempaAlertList.tsx
 import React, { useState } from "react";
 import Card from "../cards/card";
-import ItemKotaTerdampak from "../ItemKotaTerdampak";
+import ItemKotaTerdampak from "../item-kota-terdampak";
 import TitikGempa from "../marker/titik_gempa";
 import { X } from "lucide-react";
 
