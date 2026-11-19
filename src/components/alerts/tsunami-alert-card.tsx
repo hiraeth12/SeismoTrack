@@ -1,80 +1,67 @@
-// src/components/alerts/TsunamiAlertCard.tsx
+// src/components/alerts/tsunami-alert-card.tsx
 import React, { useState } from "react";
-import Card from "../cards/card";
-import ItemKotaTerdampak from "../item-kota-terdampak";
+import { Waves, X } from "lucide-react";
 import TitikTsunami from "../marker/titik_tsunami";
-import { X } from "lucide-react";
-
 
 interface Props {
   data: TitikTsunami;
+  onDismiss?: () => void;
 }
 
-const TsunamiAlertCard: React.FC<Props> = ({ data }) => {
-  const level = data.infoTsunami.level ?? "";
-
+const TsunamiAlertCard: React.FC<Props> = ({ data, onDismiss }) => {
+  const level = data.infoTsunami.level ?? "Peringatan Tsunami";
   const [visible, setVisible] = useState(true);
 
   if (!visible) return null;
 
   return (
-    <Card
-      title={
-        <div className="overflow-hidden">
-          <div className="strip-wrapper">
-            <div className="strip-bar loop-strip-reverse anim-duration-20"></div>
-            <div className="strip-bar loop-strip-reverse anim-duration-20"></div>
-          </div>
-          <div className="absolute top-0 bottom-0 left-0 right-0 flex justify-center items-center">
-            <p className="p-1 bg-black font-bold text-xs text-glow font-cascadia">
-              PERINGATAN TSUNAMI
-            </p>
-          </div>
-          <button
-            onClick={() => setVisible(false)}
-            className="absolute top-1 right-1 text-red-800 w-5 h-5 flex items-center justify-center z-10"
-            aria-label="Close alert"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      }
-      footer={
-        <div className="flex justify-center w-full">
-          <span>{level}</span>
-        </div>
-      }
-      className="hidden md:block show-pop-up md:w-1/3 lg:w-1/4 xl:w-1/5 2xl:w-1/6 pointer-events-auto"
+    <aside
+      role="alert"
+      className="map-panel-enter pointer-events-auto w-[290px] sm:w-[320px] rounded-xl border border-[#FECACA] bg-white shadow-[0_8px_24px_rgba(20,20,19,0.14)] overflow-hidden"
     >
-      <div
-        className="flex flex-col w-full justify-center items-center text-glow text-sm"
-        style={{ fontSize: "10px" }}
-      >
-        <div className="mt-2 bordered w-full">
-          <p className="text-glow p-2 break-words font-cascadia">
-            {data.infoTsunami.message}
-          </p>
+      <div className="flex items-center justify-between gap-2 bg-[#B91C1C] px-3.5 py-2 text-white">
+        <div className="flex items-center gap-2 min-w-0">
+          <Waves className="h-4 w-4 shrink-0 text-[#FEF08A]" aria-hidden="true" />
+          <span className="text-xs font-bold truncate">{level}</span>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setVisible(false);
+            onDismiss?.();
+          }}
+          aria-label="Tutup kartu informasi tsunami"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/20 text-white transition-colors hover:bg-black/35"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
       </div>
 
-      {(level.includes("PD-1") || level.includes("PD-2")) 
-        // <div
-        //   className="red-bordered p-2 overflow-y-auto custom-scrollbar mt-2 pointer-events-auto"
-        //   style={{ maxHeight: "20vh" }}
-        // >
-        //   <ul>
-        //     {data.infoTsunami.listKotaTerdampak?.map((kota, i) => (
-        //       <li
-        //         key={i}
-        //         className="flex flex-grow justify-between items-center mb-2 item-daerah slide-in-left"
-        //       >
-        //         <ItemKotaTerdampak kota={kota} />
-        //       </li>
-        //     ))}
-        //   </ul>
-        // </div>
-      }
-    </Card>
+      <div className="p-3.5 space-y-2.5 text-xs">
+        <p className="leading-relaxed text-[#4E4C46] whitespace-pre-wrap break-words max-h-36 overflow-y-auto map-scrollbar">
+          {data.infoTsunami.message}
+        </p>
+
+        {data.infoTsunami.listKotaTerdampak.length > 0 && (
+          <div className="pt-2 border-t border-[#E5E2DA]">
+            <p className="text-[11px] font-semibold text-[#141413] mb-1">
+              Garis Pantai Terpantau (
+              {data.infoTsunami.listKotaTerdampak.length})
+            </p>
+            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto map-scrollbar">
+              {data.infoTsunami.listKotaTerdampak.slice(0, 10).map((kota) => (
+                <span
+                  key={`${kota.name}-${kota.distance}`}
+                  className="rounded bg-[#FEF2F2] border border-[#FECACA] px-1.5 py-0.5 font-mono text-[10px] font-medium text-[#991B1B]"
+                >
+                  {kota.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </aside>
   );
 };
 

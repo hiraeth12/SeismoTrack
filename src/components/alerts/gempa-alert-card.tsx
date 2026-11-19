@@ -1,117 +1,83 @@
 import React, { useState } from "react";
-import Card from "../cards/card";
-import ItemKotaTerdampak from "../item-kota-terdampak";
+import { AlertTriangle, X } from "lucide-react";
 import TitikGempa from "../marker/titik_gempa";
-import { X } from "lucide-react";
+import {
+  formatDepthLabel,
+  formatEventTimeWib,
+  formatLatLng,
+  getMagnitudeBadgeClasses,
+} from "../map/map-formatters";
 
 interface GempaAlertCardProps {
   data: TitikGempa;
+  onDismiss?: () => void;
 }
 
-const GempaAlertCard: React.FC<GempaAlertCardProps> = ({ data }) => {
+const GempaAlertCard: React.FC<GempaAlertCardProps> = ({ data, onDismiss }) => {
   const [visible, setVisible] = useState(true);
 
   if (!visible) return null;
 
+  const magValue = Number(data.mag ?? 0);
+
   return (
-    <Card
-      title={
-        <div className="relative overflow-hidden">
-          {/* Strip animation */}
-          <div className="strip-wrapper">
-            <div className="strip-bar loop-strip-reverse anim-duration-20"></div>
-            <div className="strip-bar loop-strip-reverse anim-duration-20"></div>
-          </div>
-          {/* Title */}
-          <div className="absolute top-0 bottom-0 left-0 right-0 flex justify-center items-center">
-            <p className="p-1 bg-black text-xs text-glow font-cascadia">
-              GEMPA BUMI
-            </p>
-          </div>
-          {/* Close button */}
-          <button
-            onClick={() => setVisible(false)}
-            className="absolute top-1 right-1 text-red-800 w-5 h-5 flex items-center justify-center z-10"
-            aria-label="Close alert"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      }
-      className="hidden md:block show-pop-up md:w-1/2 lg:w-2/5 xl:w-1/5 pointer-events-auto"
+    <aside
+      role="status"
+      aria-live="polite"
+      className="map-panel-enter pointer-events-auto w-[280px] sm:w-[310px] rounded-xl border border-[#FDE68A] bg-white shadow-[0_6px_20px_rgba(20,20,19,0.12)] overflow-hidden"
     >
-      <div
-        className="flex flex-col w-full justify-center items-center text-glow text-sm"
-        style={{ fontSize: "10px" }}
-      >
-        <div className="w-full flex gap-2 font-cascadia">
-          <div>
-            <div
-              id="internal"
-              className="label bordered flex mb-2 w-full lg:w-32"
-            >
-              <div className="flex flex-col items-center p-1">
-                <div className="text -characters">{data.readableMag}</div>
-                <div className="text">MAG</div>
-              </div>
-              <div className="decal -blink -striped"></div>
-            </div>
-            <p className="text-glow">
-              DEPTH : {data.readableDepth} KM
-            </p>
-          </div>
-          <div className="bordered p-1 w-full font-cascadia">
-            <table className="w-full">
-              <tbody>
-                <tr>
-                  <td className="text-left">TIME</td>
-                  <td className="text-right">{data.readableTime}</td>
-                </tr>
-                <tr>
-                  <td className="text-left">MAG</td>
-                  <td className="text-right">{Number(data.mag).toFixed(1)}</td>
-                </tr>
-                <tr>
-                  <td className="text-left">DEPTH</td>
-                  <td className="text-right">{data.depth}</td>
-                </tr>
-                <tr>
-                  <td className="text-left">LAT</td>
-                  <td className="text-right">{data.infoGempa.lat}</td>
-                </tr>
-                <tr>
-                  <td className="text-left">LNG</td>
-                  <td className="text-right">{data.infoGempa.lng}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <div className="flex items-center justify-between gap-2 bg-[#FFFBEB] border-b border-[#FDE68A] px-3.5 py-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-[#B45309]" aria-hidden="true" />
+          <span className="text-xs font-bold text-[#92400E] truncate">
+            Gempa Baru Terdeteksi
+          </span>
         </div>
-        <div className="mt-2 bordered w-full font-cascadia">
-          <p className="text-glow p-2 break-words">{data.infoGempa.message}</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setVisible(false);
+            onDismiss?.();
+          }}
+          aria-label="Tutup notifikasi gempa baru"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#92400E] transition-colors hover:bg-[#FEF3C7]"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
       </div>
 
-      {/* {data.mag >= 5 && (
-        <div
-          className="red-bordered p-2 overflow-y-auto custom-scrollbar mt-2 pointer-events-auto"
-          style={{ maxHeight: "20vh" }}
-        >
-          <ul>
-            {data.infoGempa.listKotaTerdampak?.map((kota, i) => (
-              <li
-                key={i}
-                className={`flex flex-grow justify-between items-center mb-2 item-daerah ${
-                  kota.hit ? "danger" : ""
-                } slide-in-left`}
-              >
-                <ItemKotaTerdampak kota={kota} />
-              </li>
-            ))}
-          </ul>
+      <div className="p-3.5 space-y-2.5 text-xs">
+        <div className="flex items-start justify-between gap-2">
+          <p className="font-bold text-[#141413] leading-snug break-words">
+            {data.infoGempa.place || "Wilayah Indonesia"}
+          </p>
+          <span
+            className={`shrink-0 rounded border px-2 py-0.5 font-mono text-xs font-bold seismo-tabular ${getMagnitudeBadgeClasses(magValue)}`}
+          >
+            M {magValue.toFixed(1)}
+          </span>
         </div>
-      )} */}
-    </Card>
+
+        <dl className="grid grid-cols-2 gap-2 font-mono text-[11px] seismo-tabular">
+          <div>
+            <dt className="font-sans text-[10px] text-[#6B6860]">Kedalaman</dt>
+            <dd className="font-semibold text-[#141413]">
+              {formatDepthLabel(data.depth)}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-sans text-[10px] text-[#6B6860]">Koordinat</dt>
+            <dd className="font-semibold text-[#141413] truncate">
+              {formatLatLng(data.infoGempa.lat, data.infoGempa.lng)}
+            </dd>
+          </div>
+        </dl>
+
+        <p className="font-mono text-[11px] text-[#6B6860] seismo-tabular">
+          {formatEventTimeWib(data.infoGempa.time)}
+        </p>
+      </div>
+    </aside>
   );
 };
 

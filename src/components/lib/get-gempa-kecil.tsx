@@ -69,9 +69,10 @@ ${feature.geometry.coordinates[0]} , ${feature.geometry.coordinates[1]}`;
       setAlertGempaBumi(new TitikGempa(nig.id, nig));
     }
 
+    const isVeryRecent = currentTime.toMillis() - sentTime.toMillis() < 60000;
+
     const tg = new TitikGempa(nig.id, nig, {
-      pWaveSpeed: 6000,
-      sWaveSpeed: 3000,
+      ...(isVeryRecent ? { pWaveSpeed: 6000, sWaveSpeed: 3000 } : {}),
       map: map,
       description: msg,
       zoomToPosition: true,

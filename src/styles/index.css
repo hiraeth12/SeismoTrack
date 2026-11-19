@@ -2,9 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-
 @layer base {
   :root {
+    /* Existing shadcn / map compatibility tokens */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -29,8 +29,41 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem
+    --radius: 0.5rem;
+
+    /* SeismoTrack Scientific Observatory Design System Tokens (RGB triplets for Tailwind alpha support) */
+    --seismo-ground-rgb: 250 250 248;
+    --seismo-surface-rgb: 242 240 235;
+    --seismo-elevated-rgb: 255 255 255;
+    --seismo-border-rgb: 229 226 218;
+    --seismo-border-strong-rgb: 212 207 196;
+    --seismo-ink-rgb: 20 20 19;
+    --seismo-ink-secondary-rgb: 78 76 70;
+    --seismo-ink-muted-rgb: 107 104 96;
+    --seismo-brand-rgb: 92 59 0;
+    --seismo-brand-hover-rgb: 66 42 0;
+    --seismo-brand-tint-rgb: 245 238 224;
+    --seismo-live-rgb: 21 128 61;
+    --seismo-moderate-rgb: 180 83 9;
+    --seismo-alert-rgb: 185 28 28;
+
+    --seismo-ground: #fafaf8;
+    --seismo-surface: #f2f0eb;
+    --seismo-elevated: #ffffff;
+    --seismo-border: #e5e2da;
+    --seismo-border-strong: #d4cfc4;
+    --seismo-ink: #141413;
+    --seismo-ink-secondary: #4e4c46;
+    --seismo-ink-muted: #6b6860;
+    --seismo-brand: #5c3b00;
+    --seismo-brand-hover: #422a00;
+    --seismo-brand-tint: #f5eee0;
+    --seismo-live: #15803d;
+    --seismo-moderate: #b45309;
+    --seismo-alert: #b91c1c;
+    --seismo-ease: cubic-bezier(0.22, 1, 0.36, 1);
   }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -55,16 +88,120 @@
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%
+    --chart-5: 340 75% 55%;
   }
-}
 
-@layer base {
+  html {
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }
 
+/* SeismoTrack landing-scoped surface styling */
+.seismo-landing {
+  background-color: var(--seismo-ground);
+  color: var(--seismo-ink);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+}
+
+.seismo-landing ::selection {
+  background-color: var(--seismo-brand);
+  color: #ffffff;
+}
+
+.seismo-landing :focus-visible {
+  outline: 2px solid var(--seismo-brand);
+  outline-offset: 3px;
+}
+
+.seismo-landing a,
+.seismo-landing button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(92, 59, 0, 0.12);
+}
+
+.seismo-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.seismo-balance {
+  text-wrap: balance;
+}
+
+.seismo-pretty {
+  text-wrap: pretty;
+}
+
+/* Subtle GPU-composited scroll settle from an already-visible default */
+.seismo-reveal {
+  opacity: 1;
+  transform: translateY(10px);
+  transition: transform 560ms var(--seismo-ease);
+}
+
+.seismo-reveal[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Subtle seismograph trace draw animation */
+@keyframes seismoTraceDraw {
+  from {
+    stroke-dashoffset: 680;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.seismo-trace-path {
+  stroke-dasharray: 680;
+  stroke-dashoffset: 0;
+  animation: seismoTraceDraw 1400ms var(--seismo-ease) both;
+}
+
+@keyframes seismoPulseRing {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.seismo-live-ring {
+  animation: seismoPulseRing 2.6s var(--seismo-ease) infinite;
+}
+
+/* Mandatory reduced motion compliance */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .seismo-reveal,
+  .seismo-reveal[data-visible="true"] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .seismo-trace-path,
+  .seismo-live-ring {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

@@ -1,147 +1,141 @@
 import mapboxgl from "mapbox-gl";
-import AnimatedPopup from 'mapbox-gl-animated-popup';
-import { createRoot } from 'react-dom/client';
-import { GiCancel } from 'react-icons/gi';
-import Card from "../cards/card";
+import AnimatedPopup from "mapbox-gl-animated-popup";
+import { createRoot } from "react-dom/client";
 import { InfoTsunami } from "../libs/interface";
+import { formatLatLng } from "../map/map-formatters";
 
 type TitikTsunamiSetting = {
-    map: mapboxgl.Map,
-    showMarker?: boolean,
-    showPopup?: boolean,
-    zoomToPosition?: boolean,
-    sWaveSpeed?: number,
-    pWaveSpeed?: number,
-    description?: string;
-    showPopUpInSecond?: number;
-    closePopUpInSecond?: number;
-
-}
+  map: mapboxgl.Map;
+  showMarker?: boolean;
+  showPopup?: boolean;
+  zoomToPosition?: boolean;
+  sWaveSpeed?: number;
+  pWaveSpeed?: number;
+  description?: string;
+  showPopUpInSecond?: number;
+  closePopUpInSecond?: number;
+};
 
 export default class TitikTsunami {
-    id: string;
-    infoTsunami: InfoTsunami;
-    setting?: TitikTsunamiSetting;
-    tsunamiMarker: mapboxgl.Marker | null = null;
+  id: string;
+  infoTsunami: InfoTsunami;
+  setting?: TitikTsunamiSetting;
+  tsunamiMarker: mapboxgl.Marker | null = null;
 
-    constructor(id: string, infoTsunami: InfoTsunami, setting?: TitikTsunamiSetting) {
-        this.id = id;
-        this.infoTsunami = infoTsunami;
-        this.setting = setting;
+  constructor(
+    id: string,
+    infoTsunami: InfoTsunami,
+    setting?: TitikTsunamiSetting
+  ) {
+    this.id = id;
+    this.infoTsunami = infoTsunami;
+    this.setting = setting;
 
-        this.init();
+    this.init();
+  }
+
+  init() {
+    if (this.setting != null && this.setting.map != null) {
+      if (this.setting.showMarker) {
+        this.renderMarker();
+      }
+
+      if (this.setting.zoomToPosition) {
+        this.flyTo();
+      }
+
+      if (this.setting.showPopup) {
+        const delayMs = this.setting.showPopUpInSecond
+          ? this.setting.showPopUpInSecond * 1000
+          : 1000;
+        setTimeout(() => {
+          this.renderPopup();
+        }, delayMs);
+      }
     }
+  }
 
-    init() {
-        if (this.setting != null) {
+  get center() {
+    return [this.infoTsunami.lng, this.infoTsunami.lat];
+  }
 
+  renderMarker() {
+    if (!this.setting?.map) return;
+    const titikTsunami = document.createElement("div");
+    titikTsunami.classList.add("marker-tsunami");
+    const rootMarker = createRoot(titikTsunami);
+    rootMarker.render(
+      <div className="circles" aria-hidden="true">
+        <div className="circle-ring circle-ring-1" />
+        <div className="circle-ring circle-ring-2" />
+        <div className="circle-ring circle-ring-3" />
+        <div className="epicenter-core" />
+      </div>
+    );
 
-            if (this.setting.map != null) {
+    this.tsunamiMarker = new mapboxgl.Marker(titikTsunami)
+      .setLngLat([this.center[0], this.center[1]])
+      .addTo(this.setting.map);
+  }
 
+  renderPopup() {
+    if (!this.setting?.map || !this.tsunamiMarker) return;
+    const placeholder = document.createElement("div");
+    const root = createRoot(placeholder);
+    root.render(
+      <div className="w-[272px] rounded-xl border border-[#FECACA] bg-white p-3.5 text-[#141413] shadow-lg font-sans">
+        <div className="flex items-center justify-between gap-2 pr-7 pb-2 border-b border-[#E5E2DA]">
+          <span className="text-xs font-bold text-[#991B1B]">
+            Peringatan Dini Tsunami
+          </span>
+          {this.infoTsunami.level && (
+            <span className="rounded bg-[#FEE2E2] px-2 py-0.5 font-mono text-[10px] font-bold text-[#991B1B]">
+              {this.infoTsunami.level}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 font-mono text-[11px] text-[#6B6860] seismo-tabular">
+          {formatLatLng(this.infoTsunami.lat, this.infoTsunami.lng)}
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-[#4E4C46] whitespace-pre-wrap break-words">
+          {this.setting?.description}
+        </p>
+      </div>
+    );
 
-                if (this.setting.showMarker) {
-                    this.renderMarker();
-                }
+    const popup = new AnimatedPopup({
+      closeOnClick: false,
+      openingAnimation: {
+        duration: 140,
+        easing: "easeOutSine",
+        transform: "scale",
+      },
+      closingAnimation: {
+        duration: 120,
+        easing: "easeInOutSine",
+        transform: "scale",
+      },
+    })
+      .setDOMContent(placeholder)
+      .setLngLat(this.center as [number, number])
+      .setMaxWidth("288px");
 
-                if (this.setting.zoomToPosition) {
-                    this.flyTo();
-                }
+    this.tsunamiMarker.setPopup(popup);
+    popup.addTo(this.setting.map);
 
-
-                if (this.setting.showPopup) {
-                    if (this.setting.showPopUpInSecond) {
-                        setTimeout(() => {
-                            this.renderPopup();
-
-                        }, this.setting.showPopUpInSecond * 1000);
-                    } else {
-                        setTimeout(() => {
-                            this.renderPopup();
-
-                        }, 1000);
-                    }
-                }
-
-
-            }
-        }
+    if (this.setting.closePopUpInSecond) {
+      setTimeout(() => {
+        popup.remove();
+      }, this.setting.closePopUpInSecond * 1000);
     }
+  }
 
-    get center() {
-        return [this.infoTsunami.lng, this.infoTsunami.lat];
+  flyTo() {
+    if (this.setting?.map != null) {
+      this.setting.map.flyTo({
+        center: [this.infoTsunami.lng, this.infoTsunami.lat],
+        zoom: 6,
+      });
     }
-
-    renderMarker() {
-        const titikTsunami = document.createElement('div');
-        //  el.id = 'marker';
-        titikTsunami.classList.add('marker-tsunami');
-        // titikTsunami.classList.add('blink');
-        const rootMarker = createRoot(titikTsunami)
-        rootMarker.render(
-            <div className="circles flex justify-center items-center">
-                <div className="circle1"></div>
-                <div className="circle2"></div>
-                <div className="circle3"></div>
-                <GiCancel className="blink" />
-            </div>);
-
-        // create the marker
-        this.tsunamiMarker = new mapboxgl.Marker(titikTsunami)
-            .setLngLat([this.center![0], this.center![1]])
-            .addTo(this.setting?.map!);
-
-
-    }
-
-    renderPopup() {
-        const placeholder = document.createElement('div');
-        const root = createRoot(placeholder)
-        root.render(<Card title={
-            <div className='overflow-hidden'>
-                <div className='strip-wrapper'><div className='strip-bar loop-strip-reverse anim-duration-20'></div><div className='strip-bar loop-strip-reverse anim-duration-20'></div></div>
-                <div className='absolute top-0 bottom-0 left-0 right-0 flex justify-center items-center'>
-                    <p className='p-1 bg-black font-bold text-xs text-glow'>PERINGATAN TSUNAMI</p>
-                </div>
-            </div>
-        } className='min-h-48 min-w-64 whitespace-pre-wrap' >
-            <p className="mt-1">
-                {this.setting?.description}
-            </p>
-        </Card>)
-
-        if (this.tsunamiMarker) {
-            const popup = new AnimatedPopup({
-                closeOnClick: false,
-                openingAnimation: {
-                    duration: 100,
-                    easing: 'easeOutSine',
-                    transform: 'scale'
-                },
-                closingAnimation: {
-                    duration: 100,
-                    easing: 'easeInOutSine',
-                    transform: 'scale'
-                },
-            }).setDOMContent(placeholder).setLngLat(this.center).setMaxWidth('256px').addClassName('min-w-64');
-            this.tsunamiMarker.setPopup(popup);
-            popup.addTo(this.setting!.map);
-
-            if (this.setting!.closePopUpInSecond) {
-                setTimeout(() => {
-                    popup.remove();
-                }, this.setting!.closePopUpInSecond * 1000);
-            }
-
-        }
-    }
-
-    flyTo() {
-        if (this.setting?.map != null) {
-            this.setting.map.flyTo({
-                center: [this.infoTsunami.lng, this.infoTsunami.lat],
-                zoom: 6
-            });
-        }
-    }
-
+  }
 }

@@ -79,6 +79,7 @@ export async function getTitikGempaJson(
           depth={d.depth}
           time={d.time}
           coordinates={[coordinates[0], coordinates[1]]}
+          place={d.place}
         />
       );
 

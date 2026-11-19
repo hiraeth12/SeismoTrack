@@ -1,112 +1,44 @@
-// components/SimulateGempaButton.tsx
-import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import { Activity } from "lucide-react";
 
 interface SimulateGempaButtonProps {
   onClick: () => void;
+  disabled?: boolean;
+  isRunning?: boolean;
 }
 
 export default function SimulateGempaButton({
   onClick,
+  disabled = false,
+  isRunning = false,
 }: SimulateGempaButtonProps) {
-  const [isClicked, setIsClicked] = useState(false);
-  const [ripples, setRipples] = useState<
-    Array<{ id: number; x: number; y: number }>
-  >([]);
-
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const newRipple = { id: Date.now(), x, y };
-    setRipples((prev) => [...prev, newRipple]);
-
-    setIsClicked(true);
-    onClick?.();
-
-    setTimeout(() => {
-      setRipples((prev) => prev.filter((ripple) => ripple.id !== newRipple.id));
-    }, 600);
-    setTimeout(() => {
-      setIsClicked(false);
-    }, 200);
-  };
-
   return (
-    <motion.button
-      onClick={handleClick}
-      className="relative overflow-hidden w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-full shadow-md hover:shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-300 active:scale-95 flex items-center justify-center"
-      whileHover={{
-        x: [0, -1, 1, -1, 1, 0],
-        transition: {
-          duration: 0.5,
-          repeat: Number.POSITIVE_INFINITY,
-          repeatType: "loop",
-        },
-      }}
-      whileTap={{ scale: 0.95 }}
-      animate={
-        isClicked
-          ? {
-              x: [0, -2, 2, -2, 2, -1, 1, 0],
-              y: [0, -1, 1, -1, 1, 0],
-              transition: { duration: 0.4, ease: "easeInOut" },
-            }
-          : {}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-busy={isRunning}
+      aria-label={
+        isRunning
+          ? "Simulasi gempa bumi sedang berjalan"
+          : "Jalankan simulasi peringatan gempa bumi"
       }
+      title={
+        isRunning
+          ? "Simulasi Gempa Sedang Berjalan"
+          : disabled
+            ? "Tunggu simulasi aktif selesai"
+            : "Simulasi Gempa Bumi"
+      }
+      className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs sm:text-sm font-semibold transition-colors duration-150 active:scale-[0.98] disabled:opacity-45 disabled:cursor-not-allowed ${
+        isRunning
+          ? "border-[#B45309] bg-[#FEF3C7] text-[#92400E]"
+          : "border-[#E5D5B5] bg-[#FFFBF2] text-[#5C3B00] hover:bg-[#F5EEE0]"
+      }`}
     >
-      {/* Ripple */}
-      <AnimatePresence>
-        {ripples.map((ripple) => (
-          <motion.div
-            key={ripple.id}
-            className="absolute rounded-full bg-white/30 pointer-events-none"
-            style={{
-              left: ripple.x - 10,
-              top: ripple.y - 10,
-              width: 20,
-              height: 20,
-            }}
-            initial={{ scale: 0, opacity: 1 }}
-            animate={{ scale: 4, opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-          />
-        ))}
-      </AnimatePresence>
-
-      {/* Content */}
-      <div className="relative z-10 flex items-center justify-center space-x-2">
-        <motion.div
-          animate={
-            isClicked
-              ? {
-                  rotate: [0, -5, 5, -5, 5, 0],
-                  transition: { duration: 0.4 },
-                }
-              : {}
-          }
-        >
-          <Activity className="w-4 h-4" />
-        </motion.div>
-        {/* <span>TEST GEMPA</span> */}
-      </div>
-
-      {/* Background animation */}
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-xl"
-        animate={{
-          opacity: [0, 0.3, 0],
-          scale: [1, 1.05, 1],
-        }}
-        transition={{
-          duration: 2,
-          repeat: Number.POSITIVE_INFINITY,
-          ease: "easeInOut",
-        }}
-      />
-    </motion.button>
+      <Activity className="h-4 w-4 shrink-0 text-[#B45309]" aria-hidden="true" />
+      <span className="hidden md:inline whitespace-nowrap">
+        {isRunning ? "Simulasi Gempa…" : "Simulasi Gempa"}
+      </span>
+    </button>
   );
 }

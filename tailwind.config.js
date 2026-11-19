@@ -6,6 +6,8 @@ export default {
     extend: {
       scrollBehavior: ["responsive"],
       fontFamily: {
+        sans: ["'Plus Jakarta Sans'", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["'JetBrains Mono'", "ui-monospace", "SFMono-Regular", "monospace"],
         cascadia: ["'Cascadia Code'", "monospace"],
       },
       borderRadius: {
@@ -14,6 +16,22 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       colors: {
+        seismo: {
+          ground: "rgb(var(--seismo-ground-rgb) / <alpha-value>)",
+          surface: "rgb(var(--seismo-surface-rgb) / <alpha-value>)",
+          elevated: "rgb(var(--seismo-elevated-rgb) / <alpha-value>)",
+          border: "rgb(var(--seismo-border-rgb) / <alpha-value>)",
+          "border-strong": "rgb(var(--seismo-border-strong-rgb) / <alpha-value>)",
+          ink: "rgb(var(--seismo-ink-rgb) / <alpha-value>)",
+          "ink-secondary": "rgb(var(--seismo-ink-secondary-rgb) / <alpha-value>)",
+          "ink-muted": "rgb(var(--seismo-ink-muted-rgb) / <alpha-value>)",
+          brand: "rgb(var(--seismo-brand-rgb) / <alpha-value>)",
+          "brand-hover": "rgb(var(--seismo-brand-hover-rgb) / <alpha-value>)",
+          "brand-tint": "rgb(var(--seismo-brand-tint-rgb) / <alpha-value>)",
+          live: "rgb(var(--seismo-live-rgb) / <alpha-value>)",
+          moderate: "rgb(var(--seismo-moderate-rgb) / <alpha-value>)",
+          alert: "rgb(var(--seismo-alert-rgb) / <alpha-value>)",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

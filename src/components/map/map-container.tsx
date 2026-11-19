@@ -1,7 +1,6 @@
-// components/map/MapContainer.tsx
+
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
-
 
 const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 mapboxgl.accessToken = mapboxToken;
@@ -13,35 +12,52 @@ interface MapContainerProps {
 }
 
 export default function MapContainer({
-  zoom = 5,
+  center = [113.9213, -0.7893],
+  zoom = 2.5,
   onMapReady,
 }: MapContainerProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
+  const onMapReadyRef = useRef(onMapReady);
+
+  onMapReadyRef.current = onMapReady;
 
   useEffect(() => {
-    if (mapInstance.current) return;
+    if (mapInstance.current || !mapRef.current) return;
 
-    mapInstance.current = new mapboxgl.Map({
-      container: mapRef.current!,
-      style: "mapbox://styles/mapbox/light-v11",
-      center : [113.9213, -0.7893],
+    const instance = new mapboxgl.Map({
+      container: mapRef.current,
+      style: "mapbox://styles/mapbox/standard-satellite",
+      projection: "globe",
+      center,
       zoom,
       maxZoom: 22,
-      
+      minZoom: 1,
+      attributionControl: true,
     });
 
-    mapInstance.current.on("load", () => {
-      if (onMapReady && mapInstance.current) {
-        mapInstance.current.setFog({
-          color: "rgba(240, 240, 245, 0.3)", // warna kabut
-          "high-color": "rgba(240, 240, 245, 0.1)",
-          "horizon-blend": 0.1,
-          "space-color": "#000000",
-          "star-intensity": 0.5,
-        });
+    instance.addControl(
+      new mapboxgl.NavigationControl({
+        visualizePitch: true,
+      }),
+      "bottom-right"
+    );
 
-        onMapReady(mapInstance.current);
+    mapInstance.current = instance;
+
+    instance.on("style.load", () => {
+      instance.setFog({
+        color: "rgba(216, 231, 245, 0.8)",
+        "high-color": "#2455a4",
+        "horizon-blend": 0.08,
+        "space-color": "#030712",
+        "star-intensity": 0.6,
+      });
+    });
+
+    instance.on("load", () => {
+      if (mapInstance.current) {
+        onMapReadyRef.current?.(mapInstance.current);
       }
     });
 
@@ -49,14 +65,16 @@ export default function MapContainer({
       mapInstance.current?.remove();
       mapInstance.current = null;
     };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div
       ref={mapRef}
-      className="w-full h-full z-0"
-      style={{ height: "100vh"}}
+      role="region"
+      aria-label="Peta interaktif pemantauan gempa bumi Indonesia"
+      className="w-full h-[100dvh] z-0"
     />
   );
-  
 }

@@ -1,21 +1,23 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import "../../styles/app.css";
 import mapboxgl from "mapbox-gl";
-import { useRef, useState } from "react";
-import io from "socket.io-client";
+import { useEffect, useRef, useState } from "react";
+import io, { type Socket } from "socket.io-client";
 import Worker from "web-worker";
-import TitikGempa from "../../components/marker/titik_gempa";
-import TitikTsunami from "../../components/marker/titik_tsunami";
-import GempaBumiAlert from "../../components/gempa-bumi-alert";
 import * as turf from "@turf/turf";
 import { createRoot } from "react-dom/client";
 import AnimatedPopup from "mapbox-gl-animated-popup";
+import { DateTime } from "luxon";
+import { ChevronDown, ChevronUp, Layers } from "lucide-react";
+import TitikGempa from "../../components/marker/titik_gempa";
+import TitikTsunami from "../../components/marker/titik_tsunami";
+import GempaBumiAlert from "../../components/gempa-bumi-alert";
+import TsunamiAlert from "../../components/tsunami-alert";
 import {
   KotaTerdampak,
   InfoGempa,
   InfoTsunami,
 } from "../../components/libs/interface";
-import TsunamiAlert from "../../components/tsunami-alert";
 import GempaAlertCard from "../../components/alerts/gempa-alert-card";
 import TsunamiAlertCard from "../../components/alerts/tsunami-alert-card";
 import GempaDirasakanCard from "../../components/cards/gempa-dirasakan-card";
@@ -33,52 +35,18 @@ import { getGempa } from "../../components/lib/get-gempa";
 import { getGempaKecil } from "../../components/lib/get-gempa-kecil";
 import { updateGempa } from "../../components/lib/update-gempa";
 import GempaInfoPopupCard from "../../components/cards/gempa-info-popup-card";
-import { DateTime } from "luxon";
-
-let socket;
-
-// Helper function to play audio with error handling
-const playAudioSafely = (audio: HTMLAudioElement, description: string = "") => {
-  if (audio.play) {
-    audio.play().catch((error) => {
-      console.warn(`Audio autoplay blocked for ${description}:`, error);
-    });
-  }
-};
-
-// Enable audio context on first user interaction
-let audioContextEnabled = false;
-const enableAudioContext = () => {
-  if (!audioContextEnabled) {
-    audioContextEnabled = true;
-    console.log("Audio context enabled by user interaction");
-  }
-};
+import {
+  formatDepthLabel,
+  getMagnitudeBadgeClasses,
+  MAP_DEPTH_LEGEND,
+} from "../../components/map/map-formatters";
 
 export default function MapPages() {
-  
   const smallEarthQuakeSound = "/sounds/wrong-answer-129254.mp3";
-  const tsunamiAlertSound = "sounds/tsu_eva.wav";
+  const tsunamiAlertSound = "/sounds/tsu_eva.wav";
+
   const map = useRef<mapboxgl.Map | null>(null);
-
-  const handleMapReady = (mapInstance: mapboxgl.Map) => {
-    map.current = mapInstance;
-    
-    // Enable audio on first user interaction
-    const enableAudio = () => {
-      enableAudioContext();
-      document.removeEventListener('click', enableAudio);
-      document.removeEventListener('touchstart', enableAudio);
-      document.removeEventListener('keydown', enableAudio);
-    };
-    
-    document.addEventListener('click', enableAudio);
-    document.addEventListener('touchstart', enableAudio);
-    document.addEventListener('keydown', enableAudio);
-    
-    loadGeoJsonCoastline();
-  };
-
+  const socketRef = useRef<Socket | null>(null);
   const geoJsonData = useRef<any>(null);
   const geoJsonCoastline = useRef<any>(null);
   const geoJsonTitikGempa = useRef<any>(null);
@@ -88,29 +56,108 @@ export default function MapPages() {
   const titikGempaBaru = useRef<TitikGempa[]>([]);
   const tts = useRef<TitikTsunami[]>([]);
   const kts = useRef<KotaTerdampak[]>([]);
-  const markerDaerahs = useRef<any[]>([]);
+  const markerDaerahs = useRef<number[][]>([]);
   const daerahTsunami = useRef<any[]>([]);
   const lastGempaId = useRef<string>("");
   const lastGempaKecilId = useRef<string>("");
-  const [detailInfoGempa, setDetailInfoGempa] = useState<InfoGempa | null>(
-    null
+  const blinkInterval = useRef<number | null>(null);
+  const selectedPopup = useRef<any>(null);
+  const isMutedRef = useRef<boolean>(false);
+
+  const [isGeoReady, setIsGeoReady] = useState(false);
+  const [activeSimulation, setActiveSimulation] = useState<
+    "gempa" | "tsunami" | null
+  >(null);
+  const simulationTimerRef = useRef<number | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isEventLogOpen, setIsEventLogOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
   );
+  const [telemetryTab, setTelemetryTab] = useState<"dirasakan" | "terdeteksi">(
+    "dirasakan"
+  );
+  const [telemetryExpanded, setTelemetryExpanded] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
   const [gempaDirasakan, setGempaDirasakan] = useState<TitikGempa | null>(null);
   const [gempaTerakhir, setGempaTerakhir] = useState<TitikGempa | null>(null);
   const [events, setEvents] = useState<TitikGempa[]>([]);
   const [alertGempaBumi, setAlertGempaBumi] = useState<TitikGempa | null>(null);
   const [alertGempaBumis, setAlertGempaBumis] = useState<TitikGempa[]>([]);
+  const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
   const [alertTsunami, setAlertTsunami] = useState<TitikTsunami | null>(null);
   const [infoTsunami, setInfoTsunami] = useState<TitikTsunami | null>(null);
   const [shakeMap, setShakeMap] = useState<string | null>(null);
-  const blinkInterval = useRef<any>(null);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  // Clean up all background resources when leaving /map
+  useEffect(() => {
+    return () => {
+      if (simulationTimerRef.current !== null) {
+        window.clearTimeout(simulationTimerRef.current);
+        simulationTimerRef.current = null;
+      }
+      if (blinkInterval.current !== null) {
+        window.clearInterval(blinkInterval.current);
+        blinkInterval.current = null;
+      }
+      if (worker.current) {
+        worker.current.terminate();
+        worker.current = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      tgs.current.forEach((tg) => tg.removeAllRender());
+      titikGempaBaru.current.forEach((tg) => tg.removeAllRender());
+      if (selectedPopup.current) {
+        selectedPopup.current.remove();
+        selectedPopup.current = null;
+      }
+    };
+  }, []);
+
+  const playAudioSafely = (audio: HTMLAudioElement) => {
+    if (isMutedRef.current) return;
+    if (audio.play) {
+      audio.play().catch(() => {});
+    }
+  };
+
+  function fadeOutAudio(audioElement: HTMLAudioElement, duration: number) {
+    const fadeInterval = 50;
+    const step = audioElement.volume / (duration / fadeInterval);
+
+    const fadeAudio = window.setInterval(() => {
+      if (audioElement.volume > step) {
+        audioElement.volume = Math.max(0, audioElement.volume - step);
+      } else {
+        audioElement.volume = 0;
+        audioElement.pause();
+        window.clearInterval(fadeAudio);
+      }
+    }, fadeInterval);
+  }
+
+  const handleMapReady = (mapInstance: mapboxgl.Map) => {
+    map.current = mapInstance;
+    loadGeoJsonCoastline();
+  };
+
   const warningHandler = async (data: any) => {
     const time = new Date().toLocaleTimeString();
     const id = data.id ?? `tg-${time}`;
 
     if (!map.current) return;
     const nig: InfoGempa = {
-      id: id,
+      id,
       lng: parseFloat(data.lng),
       lat: parseFloat(data.lat),
       mag: parseFloat(data.mag || 0),
@@ -130,7 +177,7 @@ export default function MapPages() {
     const tg = new TitikGempa(id, nig, {
       pWaveSpeed: 6000,
       sWaveSpeed: 3000,
-      map: map.current!,
+      map: map.current,
       showMarker: true,
       description: data.message,
       showPopup: true,
@@ -140,76 +187,56 @@ export default function MapPages() {
     tgs.current.push(tg);
     titikGempaBaru.current.push(tg);
 
-    setAlertGempaBumis([...alertGempaBumis, tg]);
-    var bgNotif = new Audio("/sounds/eq_eva.wav");
-    bgNotif.volume = 0.3;
+    setAlertGempaBumis((prev) => [...prev, tg]);
+
+    const bgNotif = new Audio("/sounds/eq_eva.wav");
+    bgNotif.volume = 0.25;
     bgNotif.loop = true;
-    playAudioSafely(bgNotif, "background earthquake notification");
-    const audioDangerElement = document.getElementById("danger");
-    setTimeout(() => {
-      if (audioDangerElement) {
-        playAudioSafely(audioDangerElement as HTMLAudioElement, "danger sound");
-      }
-      setTimeout(() => {
-        var voice = new Audio("/voice/gempabumi.wav");
-        playAudioSafely(voice, "earthquake voice");
+    playAudioSafely(bgNotif);
+
+    window.setTimeout(() => {
+      window.setTimeout(() => {
+        const voice = new Audio("/voice/gempabumi.wav");
+        playAudioSafely(voice);
       }, 2000);
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         fadeOutAudio(bgNotif, 2000);
       }, 6000);
     }, 2000);
 
-    await new Promise((r) => setTimeout(r, 6000));
+    await new Promise((r) => window.setTimeout(r, 6000));
 
-    setEvents(tgs.current);
+    setEvents([...tgs.current]);
     if (worker.current != null) {
       adaGempa.current = true;
-      console.log("Send Wave");
       sendWave();
-    }
-    if (audioDangerElement) {
-      (audioDangerElement as HTMLAudioElement).volume = 0.5;
     }
   };
 
   function blinkCoastline() {
-    if (blinkInterval.current) {
-      clearInterval(blinkInterval.current);
+    if (blinkInterval.current !== null) {
+      window.clearInterval(blinkInterval.current);
     }
-    blinkInterval.current = setInterval(() => {
-      const visibility = map.current!.getLayoutProperty(
+    blinkInterval.current = window.setInterval(() => {
+      if (!map.current || !map.current.getLayer("outline-coastline")) return;
+      const visibility = map.current.getLayoutProperty(
         "outline-coastline",
         "visibility"
       );
-      map.current!.setLayoutProperty(
+      map.current.setLayoutProperty(
         "outline-coastline",
         "visibility",
-        visibility == "visible" ? "none" : "visible"
+        visibility === "visible" ? "none" : "visible"
       );
     }, 1000);
   }
 
-  function fadeOutAudio(audioElement, duration) {
-    let fadeInterval = 50;
-    let step = audioElement.volume / (duration / fadeInterval);
-
-    let fadeAudio = setInterval(() => {
-      if (audioElement.volume > step) {
-        audioElement.volume -= step;
-      } else {
-        audioElement.volume = 0;
-        audioElement.pause();
-        clearInterval(fadeAudio);
-      }
-    }, fadeInterval);
-  }
-
   const warningTsunamiHandler = async (data: any) => {
-    if (blinkInterval.current) {
-      clearInterval(blinkInterval.current);
+    if (blinkInterval.current !== null) {
+      window.clearInterval(blinkInterval.current);
     }
-    const results: any = [];
+    const results: any[] = [];
     daerahTsunami.current = [];
 
     const time = new Date().toLocaleTimeString();
@@ -217,21 +244,23 @@ export default function MapPages() {
 
     const coordinates = data.point.coordinates.split(",");
     const nit: InfoTsunami = {
-      id: id,
+      id,
       lng: parseFloat(coordinates[0]),
       lat: parseFloat(coordinates[1]),
-      message: data.description + "\n" + data.instruction,
+      message: `${data.description}\n${data.instruction}`,
       level: data.subject,
       time: data.time || new Date().toLocaleString(),
       listKotaTerdampak: [],
     };
 
     let level = "WASPADA";
+    const wzList = Array.isArray(data.wzarea) ? data.wzarea : [data.wzarea];
 
-    for (let x = 0; x < data.wzarea.length; x++) {
-      const wz = data.wzarea[x];
+    for (let x = 0; x < wzList.length; x += 1) {
+      const wz = wzList[x];
+      if (!wz || !wz.district || !geoJsonCoastline.current) continue;
       const cek = geoJsonCoastline.current.features.find(
-        (f) =>
+        (f: any) =>
           wz.district
             .replaceAll("-", " ")
             .replaceAll("PULAU ", "")
@@ -246,17 +275,16 @@ export default function MapPages() {
             .replaceAll("KEPULAUAN ", "")
       );
       if (cek) {
-        let color = "yellow";
-        if (wz.level == "SIAGA") {
-          color = "orange";
-        } else if (wz.level == "AWAS") {
-          color = "red";
+        let color = "#eab308";
+        if (wz.level === "SIAGA") {
+          color = "#ea580c";
+        } else if (wz.level === "AWAS") {
+          color = "#dc2626";
         }
-        if (level == "WASPADA" && wz.level == "SIAGA") {
+        if (level === "WASPADA" && wz.level === "SIAGA") {
           level = wz.level;
         }
-
-        if (level == "SIAGA" && wz.level == "AWAS") {
+        if (level === "SIAGA" && wz.level === "AWAS") {
           level = wz.level;
         }
 
@@ -268,49 +296,47 @@ export default function MapPages() {
           turf.point([cek.properties.longitude, cek.properties.latitude])
         );
         const timeDist = Math.floor(dist / 3) * 1000;
-        nit.listKotaTerdampak!.push({
+        nit.listKotaTerdampak.push({
           lng: cek.properties.longitude,
           lat: cek.properties.latitude,
           distance: dist,
           name: cek.properties.alt_name,
           hit: false,
-          timeArrival: new Date(new Date().getTime() + timeDist),
+          timeArrival: new Date(Date.now() + timeDist),
         });
-      } else {
-        console.log(wz);
       }
 
-      nit.listKotaTerdampak!.sort((a, b) => a.distance - b.distance);
+      nit.listKotaTerdampak.sort((a, b) => a.distance - b.distance);
     }
 
-    for (let x = 0; x < results.length; x++) {
+    if (!map.current) return;
+
+    for (let x = 0; x < results.length; x += 1) {
       const element = results[x];
       const p: number[] = turf.centroid(element).geometry.coordinates;
       if (
         markerDaerahs.current.findIndex(
-          (el) => el[0] == p[0] && el[1] == p[1]
-        ) == -1
+          (el) => el[0] === p[0] && el[1] === p[1]
+        ) === -1
       ) {
         markerDaerahs.current.push([p[0], p[1]]);
         const markerParent = document.createElement("div");
         const markerEl = document.createElement("div");
-        markerEl.innerHTML =
-          '<p class="uppercase">' + element.properties.alt_name + "</p>";
+        markerEl.innerHTML = `<p>${element.properties.alt_name}</p>`;
         markerEl.classList.add("marker-daerah");
-        markerEl.classList.add("show-pop-up");
         markerParent.appendChild(markerEl);
         new mapboxgl.Marker(markerParent)
           .setLngLat([p[0], p[1]])
-          .addTo(map.current!);
+          .addTo(map.current);
       }
     }
 
     const tt = new TitikTsunami(id, nit, {
       pWaveSpeed: 6000,
       sWaveSpeed: 3000,
-      map: map.current!,
+      map: map.current,
       showMarker: true,
-      description: data.description + "\n" + data.instruction,
+      description: `${data.description}\n${data.instruction}`,
       showPopup: true,
       showPopUpInSecond: 6,
       zoomToPosition: true,
@@ -322,17 +348,18 @@ export default function MapPages() {
 
     daerahTsunami.current = results;
     if (results.length > 0) {
-      if (map.current!.getSource("coastline")) {
-        (map.current!.getSource("coastline") as mapboxgl.GeoJSONSource).setData(
-          { type: "FeatureCollection", features: results }
-        );
+      if (map.current.getSource("coastline")) {
+        (map.current.getSource("coastline") as mapboxgl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: results,
+        });
       } else {
-        map.current!.addSource("coastline", {
+        map.current.addSource("coastline", {
           type: "geojson",
           data: { type: "FeatureCollection", features: results },
         });
       }
-      map.current!.setLayoutProperty(
+      map.current.setLayoutProperty(
         "outline-coastline",
         "visibility",
         "visible"
@@ -342,102 +369,82 @@ export default function MapPages() {
       return;
     }
 
-    if (!map.current) return;
     blinkCoastline();
-    map.current!.moveLayer("outline-coastline");
+    map.current.moveLayer("outline-coastline");
 
-    console.log("WARNING TSUNAMI!!!");
-    var bgNotif = new Audio("/sounds/tsu_eva.wav");
-    bgNotif.volume = 0.3;
+    const bgNotif = new Audio("/sounds/tsu_eva.wav");
+    bgNotif.volume = 0.25;
     bgNotif.loop = true;
-    playAudioSafely(bgNotif, "tsunami background");
-    var notif = new Audio(tsunamiAlertSound);
+    playAudioSafely(bgNotif);
+
+    const notif = new Audio(tsunamiAlertSound);
+    notif.volume = 0.25;
     notif.loop = true;
-    playAudioSafely(notif, "tsunami alert");
-    setTimeout(() => {
-      var voice = new Audio("/voice/terdeteksi.wav");
-      playAudioSafely(voice, "detected voice");
+    playAudioSafely(notif);
 
-      setTimeout(() => {
-        var voice = new Audio("/voice/" + level.toLowerCase() + ".wav");
-        playAudioSafely(voice, "level voice");
-        setTimeout(() => {
-          var voice = new Audio("/voice/potensi.wav");
-          playAudioSafely(voice, "potential voice");
+    window.setTimeout(() => {
+      playAudioSafely(new Audio("/voice/terdeteksi.wav"));
 
-          if (level == "AWAS") {
-            setTimeout(() => {
-              var voice = new Audio("/voice/evakuasi.wav");
-              playAudioSafely(voice, "evacuation voice");
-              setTimeout(() => {
-                fadeOutAudio(notif, 1000);
-                fadeOutAudio(bgNotif, 1000);
-              }, 4000);
-            }, 6000);
-          } else {
-            setTimeout(() => {
-              var voice = new Audio("/voice/informasi.wav");
-              playAudioSafely(voice, "information voice");
-              setTimeout(() => {
-                fadeOutAudio(notif, 1000);
-                fadeOutAudio(bgNotif, 1000);
-              }, 4000);
-            }, 6000);
-          }
+      window.setTimeout(() => {
+        playAudioSafely(new Audio(`/voice/${level.toLowerCase()}.wav`));
+        window.setTimeout(() => {
+          playAudioSafely(new Audio("/voice/potensi.wav"));
+
+          window.setTimeout(() => {
+            playAudioSafely(
+              new Audio(
+                level === "AWAS" ? "/voice/evakuasi.wav" : "/voice/informasi.wav"
+              )
+            );
+            window.setTimeout(() => {
+              fadeOutAudio(notif, 1000);
+              fadeOutAudio(bgNotif, 1000);
+            }, 4000);
+          }, 6000);
         }, 5000);
       }, 5000);
     }, 2000);
 
-    setTimeout(() => {
-      const tsunamiWarning: HTMLDivElement = document.querySelector(
-        "#tsunami-warning"
-      ) as HTMLDivElement;
-      if (tsunamiWarning) {
-        const divs = tsunamiWarning.querySelectorAll(".show-pop-up");
-        divs.forEach((v) => {
-          v.classList.add("close-pop-up");
-        });
+    window.setTimeout(() => {
+      if (data.shakemap) {
+        setShakeMap(data.shakemap);
       }
-
-      setShakeMap(data.shakemap);
     }, 9000);
-    setTimeout(() => {
-      const bgTsunami: HTMLDivElement = document.querySelector(
-        "#bg-tsunami .hex-bg"
-      ) as HTMLDivElement;
-      if (bgTsunami) {
-        const divs = bgTsunami.querySelectorAll("div");
-        divs.forEach((v) => {
-          v.classList.add("close-pop-up");
-        });
-      }
-      setTimeout(() => {
-        setAlertTsunami(null);
-      }, 1000);
+
+    window.setTimeout(() => {
+      setAlertTsunami(null);
       setInfoTsunami(tt);
+      setActiveSimulation((prev) => (prev === "tsunami" ? null : prev));
     }, 10000);
   };
 
   const socketInitializer = () => {
-    if (socket != null) return;
-    socket = io("https://early-warning.potadev.com");
-
-    socket.on("connect", () => {
-      console.log("connected");
+    if (socketRef.current != null) return;
+    // Bounded reconnection prevents infinite console CORS error storms if the
+    // external early-warning host blocks localhost origins while keeping live
+    // streaming active where permitted.
+    const sock = io("https://early-warning.potadev.com", {
+      transports: ["websocket"],
+      reconnectionAttempts: 1,
+      timeout: 5000,
     });
-    socket.on("warning", (v: any) => {
+    socketRef.current = sock;
+
+    sock.on("connect_error", () => {
+      sock.disconnect();
+    });
+
+    sock.on("warning", (v: any) => {
       warningHandler(v);
     });
-    socket.on("message", (v: any) => {
-      console.log(v);
-    });
 
-    socket.on("gempa", (data: any) => {
+    sock.on("gempa", (data: any) => {
+      if (!map.current) return;
       updateGempa(
         data,
         lastGempaKecilId,
         smallEarthQuakeSound,
-        map.current!,
+        map.current,
         gempaTerakhir,
         tgs,
         geoJsonTitikGempa,
@@ -446,7 +453,7 @@ export default function MapPages() {
       );
     });
 
-    socket.on("tsunami", (data: any) => {
+    sock.on("tsunami", (data: any) => {
       updateTsunami(data);
     });
   };
@@ -464,15 +471,15 @@ export default function MapPages() {
 
     worker.current.addEventListener("message", (event: any) => {
       const data = event.data;
-      if (data.type == "checkMultiHighlightArea" && data.id == "wave") {
+      if (data.type === "checkMultiHighlightArea" && data.id === "wave") {
         recieveWave(data);
       }
     });
   };
 
   const sendWave = () => {
-    let t: any = [];
-    for (let i = 0; i < titikGempaBaru.current.length; i++) {
+    const t: any[] = [];
+    for (let i = 0; i < titikGempaBaru.current.length; i += 1) {
       const v = titikGempaBaru.current[i];
       if (!v.finish) {
         t.push({
@@ -487,26 +494,22 @@ export default function MapPages() {
         });
       }
     }
-    if (t.length > 0) {
-      worker.current!.postMessage({
+    if (t.length > 0 && worker.current) {
+      worker.current.postMessage({
         type: "checkMultiHighlightArea",
         titikGempa: t,
         id: "wave",
       });
-    } else {
-      console.log("Not Send Wave");
     }
   };
 
   const recieveWave = async (data: any) => {
-    let alerts: InfoGempa[] = [];
-    let ntgs: TitikGempa[] = [];
-    console.log("Received wave data:", data);
-    
-    for (let x = 0; x < data.titikGempa.length; x++) {
-      const tg = data.titikGempa[x];
-      console.log(`Processing earthquake ${tg.id}, affected areas:`, tg.areaTerdampak.length);
+    if (!map.current) return;
+    const alerts: InfoGempa[] = [];
+    const ntgs: TitikGempa[] = [];
 
+    for (let x = 0; x < data.titikGempa.length; x += 1) {
+      const tg = data.titikGempa[x];
       const nig: InfoGempa = {
         id: tg.id,
         lng: parseFloat(tg.center[1]),
@@ -526,7 +529,7 @@ export default function MapPages() {
         listKotaTerdampak: [],
       };
 
-      for (let il = 0; il < tg.areaTerdampak.length; il++) {
+      for (let il = 0; il < tg.areaTerdampak.length; il += 1) {
         const at = tg.areaTerdampak[il];
         const dist =
           turf.distance(
@@ -541,120 +544,89 @@ export default function MapPages() {
           distance: dist,
           name: at.alt_name,
           hit: at.hit,
-          timeArrival: new Date(new Date().getTime() + time),
+          timeArrival: new Date(Date.now() + time),
         });
-        
-        if (at.hit) {
-          console.log(`Area ${at.alt_name} is HIT by earthquake wave!`);
-        }
       }
 
       nig.listKotaTerdampak!.sort((a, b) => a.distance - b.distance);
       tg.infoGempa = nig;
       alerts.push(nig);
-
       data.titikGempa[x] = tg;
       ntgs.push(new TitikGempa(tg.id, nig));
     }
+
     if (alerts.length > 0) {
       setAlertGempaBumis(ntgs);
-    } else {
     }
 
-    const areas = data.area;
-    const uniqueData = areas;
-    console.log("Processing areas for markers:", uniqueData.length);
+    const uniqueData = data.area;
 
-    for (let x = 0; x < uniqueData.length; x++) {
+    for (let x = 0; x < uniqueData.length; x += 1) {
       const element = uniqueData[x];
       const p: number[] = turf.centroid(element).geometry.coordinates;
-      const markerKey = `${p[0]}_${p[1]}`;
-      
-      // Check if this area is hit by checking the area properties directly
-      let isHit = element.properties.hit || false;
-      let cityName = element.properties.alt_name;
-      
-      console.log(`Processing city: ${cityName}, hit status: ${isHit}`);
-      
+      const isHit = element.properties.hit || false;
+      const cityName = element.properties.alt_name;
+
       if (
         markerDaerahs.current.findIndex(
-          (el) => el[0] == p[0] && el[1] == p[1]
-        ) == -1
+          (el) => el[0] === p[0] && el[1] === p[1]
+        ) === -1
       ) {
         markerDaerahs.current.push([p[0], p[1]]);
         const markerParent = document.createElement("div");
         const markerEl = document.createElement("div");
-        markerEl.innerHTML =
-          '<p class="uppercase">' + 
-          cityName + (isHit ? " - TERDAMPAK!" : "") + "</p>";
+        markerEl.innerHTML = `<p>${cityName}${isHit ? " · TERDAMPAK" : ""}</p>`;
         markerEl.classList.add("marker-daerah");
-        markerEl.classList.add("show-pop-up");
         if (isHit) {
           markerEl.classList.add("city-hit");
           markerEl.style.zIndex = "1000";
-          console.log(`Created hit marker for city: ${cityName}`);
         }
         markerParent.appendChild(markerEl);
         new mapboxgl.Marker(markerParent)
           .setLngLat([p[0], p[1]])
-          .addTo(map.current!);
+          .addTo(map.current);
       } else {
-        // Update existing marker if city is hit
-        if (isHit) {
-          const existingMarkers = document.querySelectorAll('.marker-daerah');
-          existingMarkers.forEach((marker) => {
-            const markerParent = marker.parentElement?.parentElement;
-            if (markerParent) {
-              const markerPosition = (markerParent as any)._lngLat;
-              if (markerPosition && Math.abs(markerPosition.lng - p[0]) < 0.001 && Math.abs(markerPosition.lat - p[1]) < 0.001) {
-                marker.innerHTML = '<p class="uppercase">' + 
-                  cityName + " - TERDAMPAK!</p>";
-                marker.classList.add("city-hit");
-                (marker as HTMLElement).style.zIndex = "1000";
-                console.log(`Updated marker for city: ${cityName}`);
-              }
-            }
-          });
-        }
-        
         const index = kts.current.findIndex(
-          (el) => el.lng == p[0] && el.lat == p[1]
+          (el) => el.lng === p[0] && el.lat === p[1]
         );
-        if (index != -1) {
-          // Update the city status in kts array
+        if (index !== -1) {
           kts.current[index].hit = isHit;
         }
       }
     }
 
-    if (map.current!.getSource("hightlight-wave")) {
+    if (map.current.getSource("hightlight-wave")) {
       (
-        map.current!.getSource("hightlight-wave") as mapboxgl.GeoJSONSource
+        map.current.getSource("hightlight-wave") as mapboxgl.GeoJSONSource
       ).setData({ type: "FeatureCollection", features: uniqueData });
     } else {
-      map.current!.addSource("hightlight-wave", {
+      map.current.addSource("hightlight-wave", {
         type: "geojson",
         data: { type: "FeatureCollection", features: uniqueData },
       });
     }
 
-    if (!map.current!.getLayer("hightlight-wave-layer")) {
-      map.current!.addLayer({
+    if (!map.current.getLayer("hightlight-wave-layer")) {
+      map.current.addLayer({
         id: "hightlight-wave-layer",
         type: "fill",
         source: "hightlight-wave",
         layout: {},
         paint: {
           "fill-color": ["get", "color"],
-          "fill-opacity": 0.8,
+          "fill-opacity": 0.65,
         },
       });
 
-      map.current!.moveLayer("outline");
-      map.current!.moveLayer("outline-coastline");
-      for (let tg of tgs.current) {
-        if (map.current!.getLayer(tg.id)) {
-          map.current!.moveLayer(tg.id);
+      if (map.current.getLayer("outline")) {
+        map.current.moveLayer("outline");
+      }
+      if (map.current.getLayer("outline-coastline")) {
+        map.current.moveLayer("outline-coastline");
+      }
+      for (const tg of tgs.current) {
+        if (map.current.getLayer(tg.id)) {
+          map.current.moveLayer(tg.id);
         }
       }
     }
@@ -665,14 +637,15 @@ export default function MapPages() {
     fetch("/geojson/garis_pantai.geojson")
       .then((response) => response.json())
       .then((data) => {
+        if (!map.current) return;
         geoJsonCoastline.current = data;
-        if (!map.current!.getSource("coastline")) {
-          map.current!.addSource("coastline", {
+        if (!map.current.getSource("coastline")) {
+          map.current.addSource("coastline", {
             type: "geojson",
             generateId: true,
-            data: data,
+            data,
           });
-          map.current!.addLayer({
+          map.current.addLayer({
             id: "outline-coastline",
             type: "line",
             source: "coastline",
@@ -681,7 +654,7 @@ export default function MapPages() {
             },
             paint: {
               "line-color": ["get", "color"],
-              "line-width": 5,
+              "line-width": 4,
               "line-opacity": 1,
             },
           });
@@ -689,8 +662,7 @@ export default function MapPages() {
         loadGeoJsonData();
       })
       .catch((error) => {
-        alert("Failed load geojson data : " + error);
-        console.error("Error fetching data:", error);
+        console.error("Error fetching coastline geojson:", error);
       });
   }
 
@@ -698,32 +670,35 @@ export default function MapPages() {
     fetch("/geojson/all_kabkota_ind_reduce.geojson")
       .then((response) => response.json())
       .then((data) => {
+        if (!map.current) return;
         geoJsonData.current = data;
-        if (!map.current!.getSource("wilayah")) {
-          map.current!.addSource("wilayah", {
+        setIsGeoReady(true);
+
+        if (!map.current.getSource("wilayah")) {
+          map.current.addSource("wilayah", {
             type: "geojson",
             generateId: true,
-            data: data,
+            data,
           });
-          map.current!.addLayer({
+          map.current.addLayer({
             id: "outline",
             type: "line",
             source: "wilayah",
             layout: {},
             paint: {
-              "line-color": "#807a72",
-              "line-width": 1,
-              "line-opacity": 0.7,
+              "line-color": "#8c867c",
+              "line-width": 0.9,
+              "line-opacity": 0.55,
             },
           });
 
-          map.current!.addLayer({
+          map.current.addLayer({
             id: "wilayah-fill",
             type: "fill",
             source: "wilayah",
             layout: {},
             paint: {
-              "fill-color": "red",
+              "fill-color": "#b91c1c",
               "fill-opacity": [
                 "case",
                 ["boolean", ["feature-state", "hover"], false],
@@ -733,87 +708,96 @@ export default function MapPages() {
             },
           });
         }
+
         getTitikGempaJson(
-          map.current!,
+          map.current,
           geoJsonTitikGempa,
           tgs,
           setEvents,
-          () =>
+          () => {
+            if (!map.current) return;
             getGempa(
               lastGempaId,
               tgs,
-              map.current!,
+              map.current,
               geoJsonTitikGempa,
               setEvents,
               warningHandler,
               setGempaDirasakan,
               socketInitializer
-            ),
-          () =>
+            );
+          },
+          () => {
+            if (!map.current) return;
             getGempaKecil(
               lastGempaKecilId,
-              map.current!,
+              map.current,
               smallEarthQuakeSound,
               setAlertGempaBumi,
               setGempaTerakhir,
               tgs,
               geoJsonTitikGempa,
               setEvents
-            )
+            );
+          }
         );
 
         getFaultLineGeojson();
         initWorker();
       })
       .catch((error) => {
-        alert("Failed load geojson data : " + error);
-        console.error("Error fetching data:", error);
+        console.error("Error fetching regency geojson:", error);
       });
   }
 
   function getFaultLineGeojson() {
+    if (!map.current) return;
     const url = "/geojson/indo_faults_lines.geojson";
-    map.current!.addSource("indo_faults_lines", {
-      type: "geojson",
-      generateId: true,
-      data: url,
-    });
+    if (!map.current.getSource("indo_faults_lines")) {
+      map.current.addSource("indo_faults_lines", {
+        type: "geojson",
+        generateId: true,
+        data: url,
+      });
 
-    map.current!.addLayer({
-      id: "indo_faults_line_layer",
-      type: "line",
-      source: "indo_faults_lines",
-      layout: {},
-      paint: {
-        "line-color": "red",
-        "line-width": 1,
-        "line-opacity": 0.5,
-      },
-    });
+      map.current.addLayer({
+        id: "indo_faults_line_layer",
+        type: "line",
+        source: "indo_faults_lines",
+        layout: {},
+        paint: {
+          "line-color": "#b00505",
+          "line-width": 1.3,
+          "line-opacity": 0.9,
+        },
+      });
+    }
   }
 
-  function updateTsunami(data) {
-    var tsunami = false;
-    if (data.info.wzarea != undefined && data.info.wzarea.length > 0) {
-      if (data.info.subject == "Warning Tsunami PD-4") {
+  function updateTsunami(data: any) {
+    let tsunami = false;
+    if (data.info.wzarea !== undefined && data.info.wzarea.length > 0) {
+      if (data.info.subject === "Warning Tsunami PD-4") {
         try {
-          map.current!.removeLayer("outline-coastline");
-          map.current!.removeLayer("outline");
-        } catch (error) {}
+          map.current?.removeLayer("outline-coastline");
+          map.current?.removeLayer("outline");
+        } catch {
+          // ignore if already removed
+        }
       } else if (data.info.subject.includes("Warning Tsunami")) {
         tsunami = true;
       }
     }
-    if (lastGempaId.current != data.identifier) {
+
+    if (lastGempaId.current !== data.identifier) {
       lastGempaId.current = data.identifier;
       const coordinates = data.info.point.coordinates.split(",");
       const sentTime = DateTime.fromISO(data.sent.replace("WIB", ""), {
         zone: "Asia/Jakarta",
       });
-      const readAbleTime =
-        sentTime.toISODate() +
-        " " +
-        sentTime.toLocaleString(DateTime.TIME_24_WITH_SECONDS);
+      const readAbleTime = `${sentTime.toISODate()} ${sentTime.toLocaleString(
+        DateTime.TIME_24_WITH_SECONDS
+      )}`;
 
       if (tsunami) {
         warningTsunamiHandler(data.info);
@@ -825,185 +809,381 @@ export default function MapPages() {
           place: data.info.felt,
           mag: parseFloat(parseFloat(data.info.magnitude).toFixed(1)),
           depth: data.info.depth,
-          message: data.info.description + "\n" + data.info.instruction,
+          message: `${data.info.description}\n${data.info.instruction}`,
           time: readAbleTime,
         });
       }
+    } else if (tsunami) {
+      const cek = tts.current.find((v) => v.id === data.identifier);
+      if (
+        cek &&
+        cek.infoTsunami.message !== `${data.description}\n${data.instruction}`
+      ) {
+        cek.infoTsunami.message = `${data.description}\n${data.instruction}`;
+        setAlertTsunami(cek);
+      }
     } else {
-      if (tsunami) {
-        const cek = tts.current.find((v) => v.id == data.identifier);
-        if (
-          cek &&
-          cek.infoTsunami.message != data.description + "\n" + data.instruction
-        ) {
-          cek.infoTsunami.message = data.description + "\n" + data.instruction;
-
-          setAlertTsunami(cek);
+      const cek = tgs.current.find((v) => v.id === data.identifier);
+      if (cek) {
+        if (cek.infoGempa.mag !== parseFloat(data.info.magnitude)) {
+          cek.infoGempa.mag = parseFloat(data.info.magnitude);
         }
-      } else {
-        const cek = tgs.current.find((v) => v.id == data.identifier);
-        if (cek) {
-          if (cek.infoGempa.mag != parseFloat(data.info.magnitude)) {
-            cek.infoGempa.mag = data.info.magnitud;
-          }
-          if (cek.infoGempa.depth != data.info.depth) {
-            cek.infoGempa.depth = data.info.depth;
-          }
+        if (cek.infoGempa.depth !== data.info.depth) {
+          cek.infoGempa.depth = data.info.depth;
         }
       }
     }
   }
 
-  const selectedPopup = useRef<any>(null);
-
   function selectEvent(d: InfoGempa) {
-    setDetailInfoGempa(d);
+    if (!map.current) return;
+    setSelectedEventId(d.id);
+
     if (selectedPopup.current) {
       selectedPopup.current.remove();
     }
 
-    if (d.mmi != 0) {
-      setShakeMap(d.mmi.toString() + ".mmi.jpg");
+    if (d.mmi !== 0) {
+      setShakeMap(`${d.mmi}.mmi.jpg`);
     }
 
-    map.current!.flyTo({
+    map.current.flyTo({
       center: [d.lng, d.lat],
       zoom: 6,
       essential: true,
     });
+
     const placeholder = document.createElement("div");
     const root = createRoot(placeholder);
-    root.render(<GempaInfoPopupCard data={d} />); //Ini Buat di Event log, karena ada fly-in
+    root.render(<GempaInfoPopupCard data={d} />);
 
     selectedPopup.current = new AnimatedPopup({
       closeOnClick: false,
       openingAnimation: {
-        duration: 100,
+        duration: 140,
         easing: "easeOutSine",
         transform: "scale",
       },
       closingAnimation: {
-        duration: 100,
+        duration: 120,
         easing: "easeInOutSine",
         transform: "scale",
       },
     })
       .setDOMContent(placeholder)
       .setLngLat([d.lng, d.lat])
-      .addTo(map.current!);
+      .addTo(map.current);
   }
 
+  const clearActiveSimulation = (type?: "gempa" | "tsunami") => {
+    if (simulationTimerRef.current !== null) {
+      window.clearTimeout(simulationTimerRef.current);
+      simulationTimerRef.current = null;
+    }
+    setActiveSimulation((prev) => (!type || prev === type ? null : prev));
+  };
+
   function handleTestDemoGempa() {
+    if (activeSimulation !== null || !geoJsonData.current) return;
+    setActiveSimulation("gempa");
+    if (simulationTimerRef.current !== null) {
+      window.clearTimeout(simulationTimerRef.current);
+    }
+    // Auto-unlock after the simulation alert & wave dispatch cycle completes
+    simulationTimerRef.current = window.setTimeout(() => {
+      setActiveSimulation((prev) => (prev === "gempa" ? null : prev));
+      simulationTimerRef.current = null;
+    }, 10000);
     testDemoGempa(geoJsonData.current, warningHandler);
   }
 
-  function handleTestDemoTsunami() {
-    testDemoTsunami(warningTsunamiHandler);
+  async function handleTestDemoTsunami() {
+    if (activeSimulation !== null) return;
+    setActiveSimulation("tsunami");
+    if (simulationTimerRef.current !== null) {
+      window.clearTimeout(simulationTimerRef.current);
+    }
+    // Safety fallback unlock in case the remote XML feed fails or times out
+    simulationTimerRef.current = window.setTimeout(() => {
+      setActiveSimulation((prev) => (prev === "tsunami" ? null : prev));
+      simulationTimerRef.current = null;
+    }, 12000);
+    try {
+      await testDemoTsunami(warningTsunamiHandler);
+    } catch {
+      clearActiveSimulation("tsunami");
+    }
   }
 
-  function readTextFile(e: string) {
-    var t = new XMLHttpRequest();
-    t.open("GET", e, !1),
-      (t.onreadystatechange = function () {
-        if (4 === t.readyState && (200 === t.status || 0 == t.status)) {
-          let u = t.responseText.split("\n");
-          var table = document.getElementById(
-            "histori_tabel"
-          ) as HTMLTableElement;
+  const activeTelemetryEvent =
+    telemetryTab === "dirasakan"
+      ? gempaDirasakan ?? gempaTerakhir
+      : gempaTerakhir ?? gempaDirasakan;
 
-          let T = u.length - 1;
-          for (let t = 1; t < T; t++) {
-            let T = u[t].split("|");
-            var n = table.insertRow(t),
-              a = n.insertCell(0),
-              l = n.insertCell(1),
-              s = n.insertCell(2),
-              i = n.insertCell(3),
-              o = n.insertCell(4),
-              r = n.insertCell(5),
-              d = n.insertCell(6),
-              m = n.insertCell(7),
-              g = n.insertCell(8),
-              c = n.insertCell(9);
-            (a.innerHTML = T[0]),
-              (l.innerHTML = T[1]),
-              (s.innerHTML = T[2]),
-              (i.innerHTML = T[3]),
-              (o.innerHTML = T[4]),
-              (r.innerHTML = T[5]),
-              (d.innerHTML = T[6]),
-              (m.innerHTML = T[7]),
-              (g.innerHTML = T[8]),
-              (c.innerHTML = T[9]);
-          }
-        }
-      }),
-      t.send(null);
-  }
   return (
-    <div className="min-h-screen bg-black font-mono relative overflow-hidden flex">
-      <div className="relative flex-1 overflow">
-        {/* <audio id="danger" className="hidden">
-          <source src={dangerSound} type="audio/mp3" />
-        </audio> */}
-        <MapContainer onMapReady={handleMapReady} />
-        <div className="backgroundline absolute inset-0 pointer-events-none z-10" />
-        <div className="scanline absolute inset-0 pointer-events-none z-10" />
-        <div
-          id="gempa-bumi-alert"
-          className="fixed top-6 md:top-3 left-6 md:left-3 right-0 flex  gap-2 justify-start items-start  pointer-events-none"
-        >
-          {alertGempaBumi && <GempaAlertCard data={alertGempaBumi} />}
-          {infoTsunami && <TsunamiAlertCard data={infoTsunami} />}
-          {<GempaAlertList data={alertGempaBumis} />}
-        </div>
-        <div className="fixed top-12 w-28 md:bottom-auto md:top-2 left-0 right-0 m-auto flex flex-col justify-center items-center gap-2">
-          <TestButtons
-            onTestGempa={handleTestDemoGempa}
-            onTestTsunami={handleTestDemoTsunami}
-          />
-        </div>
-        {<EventLogCard events={events} onSelect={selectEvent} />}
-        <div
-          id="gempa-bumi-dirasakan"
-          className="fixed bottom-8 left-24 md:right-0 md:left-3 flex flex-col-reverse lg:flex-row gap-2 justify-start lg:items-end items-start pointer-events-none"
-        >
-          {gempaDirasakan && (
-            <GempaDirasakanCard data={gempaDirasakan} onSelect={selectEvent} />
-          )}
+    <div className="seismo-map-workspace relative h-[100dvh] w-full overflow-hidden bg-[#ECEAE4]">
+      {/* Primary Interactive Mapbox GL Canvas (100% preserved) */}
+      <MapContainer onMapReady={handleMapReady} />
 
-          {gempaTerakhir && (
-            <GempaTerakhirCard data={gempaTerakhir} onSelect={selectEvent} />
-          )}
-        </div>
-        <div className="fixed right-2 bottom-8  pointer-events-none flex gap-2 justify-end items-end">
-          {shakeMap && (
-            <ShakeMapCard
-              fileName={shakeMap}
-              onClose={() => setShakeMap(null)}
-            />
-          )}
-        </div>
-        {alertGempaBumi && gempaDirasakan && (
-          <GempaBumiMobileAlert data={gempaDirasakan} />
+      {/* Top Observatory Command Bar */}
+      <TestButtons
+        onTestGempa={handleTestDemoGempa}
+        onTestTsunami={handleTestDemoTsunami}
+        eventCount={events.length}
+        isGeoReady={isGeoReady}
+        activeSimulation={activeSimulation}
+        isMuted={isMuted}
+        onToggleMute={() => setIsMuted((prev) => !prev)}
+        isEventLogOpen={isEventLogOpen}
+        onToggleEventLog={() => setIsEventLogOpen((prev) => !prev)}
+      />
+
+      {/* Active Alert Cards Stack (Top-Left below Command Bar) */}
+      <div
+        id="gempa-bumi-alert"
+        className="fixed top-[68px] left-3 z-20 flex flex-col gap-2 pointer-events-none max-w-[calc(100vw-24px)]"
+      >
+        {alertGempaBumi && (
+          <GempaAlertCard
+            data={alertGempaBumi}
+            onDismiss={() => setAlertGempaBumi(null)}
+          />
         )}
-        {alertGempaBumis.map((v, i) => {
-          return (
-            <div className="z-50" key={i}>
-              <GempaBumiAlert
-                key={i}
-                props={{
-                  magnitudo: v.mag,
-                  kedalaman: v.depth,
-                  show: true,
-                  closeInSecond: 6,
-                }}
-              />
-            </div>
-          );
-        })}
-        {alertTsunami && <TsunamiAlert alertTsunami={alertTsunami} />}
+        {infoTsunami && (
+          <TsunamiAlertCard
+            data={infoTsunami}
+            onDismiss={() => setInfoTsunami(null)}
+          />
+        )}
+        <GempaAlertList
+          data={alertGempaBumis}
+          onDismissItem={(id) => {
+            setAlertGempaBumis((prev) => prev.filter((item) => item.id !== id));
+            clearActiveSimulation("gempa");
+          }}
+        />
       </div>
+
+      {/* Collapsible Right Event Log Drawer */}
+      <EventLogCard
+        events={events}
+        selectedEventId={selectedEventId}
+        isOpen={isEventLogOpen}
+        onClose={() => setIsEventLogOpen(false)}
+        onSelect={selectEvent}
+      />
+
+      {/* Bottom-Left Unified Observatory Telemetry Dock + Depth Legend */}
+      {(gempaDirasakan || gempaTerakhir) && (
+        <section
+          id="gempa-bumi-dirasakan"
+          aria-label="Ringkasan gempa terbaru dan legenda kedalaman"
+          className="fixed bottom-8 left-3 right-3 sm:right-auto z-20 sm:w-[344px] pointer-events-auto"
+        >
+          <div className="rounded-xl border border-[#E5E2DA] bg-[#FAFAF8]/95 shadow-[0_8px_28px_rgba(20,20,19,0.12)] overflow-hidden">
+            {/* Compact Header Bar (Tap to Collapse/Expand on any viewport) */}
+            <div className="flex items-center justify-between gap-2 bg-white px-3.5 py-2.5 border-b border-[#E5E2DA]">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-bold text-[#141413] truncate">
+                  {telemetryExpanded
+                    ? "Ringkasan BMKG"
+                    : activeTelemetryEvent?.infoGempa.place || "Ringkasan BMKG"}
+                </span>
+                {!telemetryExpanded && activeTelemetryEvent && (
+                  <span
+                    className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold seismo-tabular ${getMagnitudeBadgeClasses(
+                      Number(activeTelemetryEvent.infoGempa.mag ?? 0)
+                    )}`}
+                  >
+                    M {Number(activeTelemetryEvent.infoGempa.mag ?? 0).toFixed(1)}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {!telemetryExpanded && activeTelemetryEvent && (
+                  <span className="font-mono text-[11px] text-[#6B6860] seismo-tabular mr-1">
+                    {formatDepthLabel(activeTelemetryEvent.infoGempa.depth)}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLegendExpanded((prev) => !prev)}
+                  aria-expanded={legendExpanded}
+                  aria-label="Tampilkan atau sembunyikan legenda kedalaman"
+                  title="Legenda Kedalaman & Sesar"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors ${
+                    legendExpanded
+                      ? "border-[#5C3B00] bg-[#F5EEE0] text-[#5C3B00]"
+                      : "border-[#E5E2DA] bg-[#FAFAF8] text-[#4E4C46] hover:bg-[#F2F0EB]"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTelemetryExpanded((prev) => !prev)}
+                  aria-expanded={telemetryExpanded}
+                  aria-label={
+                    telemetryExpanded
+                      ? "Ciutkan ringkasan gempa"
+                      : "Buka ringkasan gempa"
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E5E2DA] bg-[#FAFAF8] text-[#4E4C46] transition-colors hover:bg-[#F2F0EB]"
+                >
+                  {telemetryExpanded ? (
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Expandable Depth & Fault Line Legend */}
+            {legendExpanded && (
+              <div className="border-b border-[#E5E2DA] bg-[#F2F0EB]/70 px-3.5 py-2.5 space-y-2">
+                <p className="text-[11px] font-semibold text-[#4E4C46]">
+                  Legenda Kedalaman Episentrum &amp; Sesar
+                </p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                  {MAP_DEPTH_LEGEND.map((item) => (
+                    <span
+                      key={item.band}
+                      className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[#141413] seismo-tabular"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      {item.band}
+                    </span>
+                  ))}
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#141413]">
+                    <span
+                      aria-hidden="true"
+                      className="h-0.5 w-3.5 bg-[#B91C1C] shrink-0"
+                    />
+                    Garis Sesar
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Tabbed Felt / Latest Detected Summary */}
+            {telemetryExpanded && (
+              <div className="p-3.5 space-y-3 bg-white">
+                {gempaDirasakan && gempaTerakhir && (
+                  <div
+                    role="tablist"
+                    aria-label="Pilih ringkasan gempa BMKG"
+                    className="grid grid-cols-2 gap-1 rounded-lg bg-[#F2F0EB] p-1"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={telemetryTab === "dirasakan"}
+                      onClick={() => setTelemetryTab("dirasakan")}
+                      className={`h-8 rounded-md text-xs font-semibold transition-colors ${
+                        telemetryTab === "dirasakan"
+                          ? "bg-white text-[#141413] shadow-sm"
+                          : "text-[#4E4C46] hover:text-[#141413]"
+                      }`}
+                    >
+                      Dirasakan
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={telemetryTab === "terdeteksi"}
+                      onClick={() => setTelemetryTab("terdeteksi")}
+                      className={`h-8 rounded-md text-xs font-semibold transition-colors ${
+                        telemetryTab === "terdeteksi"
+                          ? "bg-white text-[#141413] shadow-sm"
+                          : "text-[#4E4C46] hover:text-[#141413]"
+                      }`}
+                    >
+                      Terdeteksi
+                    </button>
+                  </div>
+                )}
+
+                {telemetryTab === "dirasakan" && gempaDirasakan ? (
+                  <GempaDirasakanCard
+                    data={gempaDirasakan}
+                    onSelect={selectEvent}
+                    onOpenShakeMap={(mmi) => setShakeMap(`${mmi}.mmi.jpg`)}
+                  />
+                ) : gempaTerakhir ? (
+                  <GempaTerakhirCard
+                    data={gempaTerakhir}
+                    onSelect={selectEvent}
+                  />
+                ) : gempaDirasakan ? (
+                  <GempaDirasakanCard
+                    data={gempaDirasakan}
+                    onSelect={selectEvent}
+                    onOpenShakeMap={(mmi) => setShakeMap(`${mmi}.mmi.jpg`)}
+                  />
+                ) : null}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ShakeMap Viewer Panel */}
+      {shakeMap && (
+        <div
+          className={`fixed bottom-8 z-30 pointer-events-none flex justify-end ${
+            isEventLogOpen
+              ? "right-3 lg:right-[368px]"
+              : "right-14"
+          }`}
+        >
+          <ShakeMapCard fileName={shakeMap} onClose={() => setShakeMap(null)} />
+        </div>
+      )}
+
+      {/* Mobile Fresh Detection Banner */}
+      {alertGempaBumi && gempaDirasakan && (
+        <GempaBumiMobileAlert data={gempaDirasakan} />
+      )}
+
+      {/* Urgent Active Earthquake Warning Overlays */}
+      {alertGempaBumis
+        .filter((v) => !dismissedBannerIds.includes(v.id))
+        .map((v) => (
+          <GempaBumiAlert
+            key={v.id}
+            props={{
+              magnitudo: v.mag,
+              kedalaman: v.depth,
+              show: true,
+              closeInSecond: 6,
+              isMuted,
+              onDismiss: () => {
+                setDismissedBannerIds((prev) =>
+                  prev.includes(v.id) ? prev : [...prev, v.id]
+                );
+                clearActiveSimulation("gempa");
+              },
+            }}
+          />
+        ))}
+
+      {/* Urgent Active Tsunami Warning Modal */}
+      {alertTsunami && (
+        <TsunamiAlert
+          alertTsunami={alertTsunami}
+          onDismiss={() => {
+            setInfoTsunami(alertTsunami);
+            setAlertTsunami(null);
+            clearActiveSimulation("tsunami");
+          }}
+        />
+      )}
     </div>
   );
 }
